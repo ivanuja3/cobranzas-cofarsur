@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cobranzas Cofarsur</title>
+<style>
+  :root{
+    color-scheme: light;
+    --bg:            #f2f4f1;
+    --page:          #eef1ed;
+    --surface:       #ffffff;
+    --surface-2:     #f7f8f5;
+    --ink:           #171c19;
+    --ink-2:         #4b544d;
+    --muted:         #7c857e;
+    --line:          #dde1da;
+    --line-strong:   #c6ccc2;
+    --accent:        #1f6f6b;
+    --accent-ink:    #0e3f3d;
+    --accent-soft:   #e2eeec;
+    --accent-soft-2: #cfe4e1;
+
+    --good:          #0ca30c;
+    --good-soft:     #e4f6e4;
+    --warning:       #b5790f;
+    --warning-soft:  #faf1de;
+    --critical:      #d03b3b;
+    --critical-soft: #fbe8e6;
+    --pending-soft:  #eceee9;
+
+    --s1: #2a78d6; /* pagos */
+    --s2: #eda100; /* objetivo */
+    --s3: #1baf7a; /* real */
+
+    --shadow: 0 1px 2px rgba(20,30,25,0.05), 0 6px 20px -12px rgba(20,30,25,0.18);
+
+    --font-display: ui-serif, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Consolas", "Roboto Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --bg:            #10130f;
+      --page:          #0d0f0c;
+      --surface:       #171b16;
+      --surface-2:     #1d221c;
+      --ink:           #eaeee7;
+      --ink-2:         #b7c0b6;
+      --muted:         #8b948a;
+      --line:          #2a3128;
+      --line-strong:   #3a4437;
+      --accent:        #55b6b0;
+      --accent-ink:    #d7f0ee;
+      --accent-soft:   #16302d;
+      --accent-soft-2: #1b3c38;
+
+      --good:          #34c759;
+      --good-soft:     #113420;
+      --warning:       #e4a93b;
+      --warning-soft:  #3a2e12;
+      --critical:      #e2685a;
+      --critical-soft: #3a1a17;
+      --pending-soft:  #21261e;
+
+      --s1: #3987e5;
+      --s2: #c98500;
+      --s3: #199e70;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px -14px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:            #10130f;
+    --page:          #0d0f0c;
+    --surface:       #171b16;
+    --surface-2:     #1d221c;
+    --ink:           #eaeee7;
+    --ink-2:         #b7c0b6;
+    --muted:         #8b948a;
+    --line:          #2a3128;
+    --line-strong:   #3a4437;
+    --accent:        #55b6b0;
+    --accent-ink:    #d7f0ee;
+    --accent-soft:   #16302d;
+    --accent-soft-2: #1b3c38;
+
+    --good:          #34c759;
+    --good-soft:     #113420;
+    --warning:       #e4a93b;
+    --warning-soft:  #3a2e12;
+    --critical:      #e2685a;
+    --critical-soft: #3a1a17;
+    --pending-soft:  #21261e;
+
+    --s1: #3987e5;
+    --s2: #c98500;
+    --s3: #199e70;
+
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 10px 30px -14px rgba(0,0,0,0.5);
+  }
+  :root[data-theme="light"]{
+    color-scheme: light;
+    --bg:            #f2f4f1;
+    --page:          #eef1ed;
+    --surface:       #ffffff;
+    --surface-2:     #f7f8f5;
+    --ink:           #171c19;
+    --ink-2:         #4b544d;
+    --muted:         #7c857e;
+    --line:          #dde1da;
+    --line-strong:   #c6ccc2;
+    --accent:        #1f6f6b;
+    --accent-ink:    #0e3f3d;
+    --accent-soft:   #e2eeec;
+    --accent-soft-2: #cfe4e1;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.45;
+  }
+  ::selection{ background: var(--accent-soft-2); }
+
+  .wrap{
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 28px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  /* ---------- login ---------- */
+  .login-screen{
+    min-height: 100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 24px;
+  }
+  .login-card{
+    width: 100%;
+    max-width: 360px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 28px 26px 26px;
+    display:flex;
+    flex-direction:column;
+    gap: 16px;
+  }
+  .login-card .mark{
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent-soft-2);
+    background: var(--accent-soft);
+    padding: 3px 8px 2px;
+    border-radius: 3px;
+    align-self: flex-start;
+  }
+  .login-card h1{
+    font-family: var(--font-display);
+    font-size: 22px;
+    margin: 4px 0 0;
+    font-weight: 600;
+  }
+  .login-card p.hint{ margin:0; color: var(--ink-2); font-size: 13px; }
+  .login-field label{
+    display:block;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+  .login-field input{
+    width:100%;
+    font-family: var(--font-body);
+    font-size: 14px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: 9px 11px;
+    color: var(--ink);
+  }
+  .login-field input:focus{ border-color: var(--accent); background: var(--surface); outline: none; }
+  .login-error{
+    font-size: 12.5px;
+    color: var(--critical);
+    display:none;
+  }
+  .login-error.show{ display:block; }
+  .login-screen[hidden], .app-screen[hidden]{ display:none !important; }
+
+  /* ---------- header ---------- */
+  .topbar{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+  }
+  .brand .mark{
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent-soft-2);
+    background: var(--accent-soft);
+    padding: 3px 8px 2px;
+    border-radius: 3px;
+  }
+  h1{
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 26px;
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .topbar p{
+    margin: 2px 0 0;
+    color: var(--ink-2);
+    font-size: 13.5px;
+  }
+  .clock{
+    text-align:right;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap: 4px;
+  }
+  .clock b{ color: var(--ink-2); font-weight: 600; }
+  .clock button{ margin-top:2px; }
+
+  /* ---------- kpi row ---------- */
+  .kpis{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .kpi{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px 15px;
+    box-shadow: var(--shadow);
+    position: relative;
+    display:flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 96px;
+  }
+  .kpi .label{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .kpi .value{
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .kpi .sub{
+    font-size: 11.5px;
+    color: var(--ink-2);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .kpi.stripe-good{ box-shadow: inset 3px 0 0 var(--good), var(--shadow); }
+  .kpi.stripe-critical{ box-shadow: inset 3px 0 0 var(--critical), var(--shadow); }
+  .kpi.stripe-warning{ box-shadow: inset 3px 0 0 var(--warning), var(--shadow); }
+  .kpi.stripe-accent{ box-shadow: inset 3px 0 0 var(--accent), var(--shadow); }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 100px;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  .pill::before{
+    content:"";
+    width:6px; height:6px;
+    border-radius:50%;
+    background: currentColor;
+    flex: none;
+  }
+  .pill-good{ background: var(--good-soft); color: var(--good); }
+  .pill-critical{ background: var(--critical-soft); color: var(--critical); }
+  .pill-warning{ background: var(--warning-soft); color: var(--warning); }
+  .pill-pending{ background: var(--pending-soft); color: var(--muted); }
+
+  /* ---------- panels ---------- */
+  .panel{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .panel > .panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .panel-head h2{
+    font-family: var(--font-display);
+    font-size: 16px;
+    margin:0;
+    font-weight:600;
+  }
+  .panel-head .desc{
+    font-size:12px;
+    color: var(--muted);
+    margin-top:1px;
+  }
+  .legend{
+    display:flex;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--ink-2);
+    flex-wrap: wrap;
+  }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend i{ width:10px; height:10px; border-radius:2px; display:inline-block; }
+
+  .charts{
+    display:grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 12px;
+  }
+  .chart-scroll{
+    overflow-x:auto;
+    padding: 14px 18px 6px;
+  }
+  svg.chart{ display:block; overflow: visible; }
+  .bar-tip{
+    position: fixed;
+    pointer-events:none;
+    background: var(--ink);
+    color: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    padding: 6px 9px;
+    border-radius: 6px;
+    line-height:1.5;
+    box-shadow: 0 8px 20px rgba(0,0,0,.25);
+    z-index: 50;
+    opacity: 0;
+    transition: opacity .1s ease;
+    white-space: nowrap;
+  }
+  .bar-tip.show{ opacity: 1; }
+  .bar-tip .tt-title{ font-family: var(--font-body); font-weight:600; margin-bottom:2px; }
+
+  /* ---------- posición de caja hoy ---------- */
+  .pos-grid{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(130px,1fr)) 170px;
+    gap: 12px;
+    padding: 16px 18px 18px;
+  }
+  .pos-field label{
+    display:block;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+  .pos-field input[type="number"]{
+    width:100%;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 14.5px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--ink);
+  }
+  .pos-field input[type="number"]:focus{ border-color: var(--accent); background: var(--surface); }
+  .pos-result{
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:2px;
+  }
+  .pos-value{
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 19px;
+    font-weight: 700;
+  }
+  select.sheet-picker{
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: var(--surface);
+    color: var(--ink);
+    max-width: 160px;
+  }
+
+  /* ---------- actions ---------- */
+  .actions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap: wrap;
+  }
+  button, .btn{
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink);
+    padding: 7px 12px;
+    cursor: pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    transition: background .12s ease, border-color .12s ease, transform .05s ease;
+  }
+  button:hover{ background: var(--surface-2); border-color: var(--line-strong); }
+  button:active{ transform: translateY(1px); }
+  button:disabled{ opacity:.55; cursor:default; }
+  button:focus-visible, input:focus-visible, a:focus-visible, select:focus-visible{
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button.primary{
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fbfdfc;
+  }
+  button.primary:hover{ background: var(--accent-ink); border-color: var(--accent-ink); }
+  button.ghost{ background: transparent; border-color: transparent; color: var(--ink-2); }
+  button.ghost:hover{ background: var(--surface-2); }
+  button.danger-ghost{ background: transparent; border-color: transparent; color: var(--muted); padding: 4px 6px; }
+  button.danger-ghost:hover{ background: var(--critical-soft); color: var(--critical); }
+  input[type="file"]{ display:none; }
+
+  /* ---------- table ---------- */
+  .table-scroll{ overflow-x: auto; }
+  table{
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1220px;
+  }
+  thead th{
+    text-align: left;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+  }
+  thead th.num, td.num{ text-align: right; }
+  tbody td{
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  tbody tr{ position: relative; }
+  tbody tr.row-good td:first-child{ box-shadow: inset 3px 0 0 var(--good); }
+  tbody tr.row-critical td:first-child{ box-shadow: inset 3px 0 0 var(--critical); }
+  tbody tr.row-warning td:first-child{ box-shadow: inset 3px 0 0 var(--warning); }
+  tbody tr.row-pending td:first-child{ box-shadow: inset 3px 0 0 var(--line-strong); }
+  tbody tr:hover{ background: var(--surface-2); }
+
+  .week-label{ font-weight: 600; font-size: 13px; }
+  .week-date{
+    display:block;
+    margin-top:2px;
+  }
+  .week-date input[type="date"]{
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 1px 2px;
+    border-radius: 4px;
+    width: 118px;
+  }
+  .week-date input[type="date"]:hover{ border-color: var(--line); }
+
+  td.num input{
+    width: 90px;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink);
+    padding: 4px 6px;
+    border-radius: 5px;
+  }
+  td.num input::placeholder{ color: var(--muted); font-style: italic; }
+  td.num input:hover{ border-color: var(--line); }
+  td.num input:focus{ border-color: var(--accent); background: var(--surface); }
+  td.num.readonly-cell{ color: var(--muted); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  td.num .unit{ color: var(--muted); font-size:11px; margin-left:2px; }
+  td.num.auto-val{ color: var(--ink-2); font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size:13px; }
+
+  td.gap-cell{ font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight:600; }
+  td.gap-cell.g-good{ color: var(--good); }
+  td.gap-cell.g-critical{ color: var(--critical); }
+  td.gap-cell.g-muted{ color: var(--muted); font-weight: 400; }
+
+  .rowdel{ opacity: .35; }
+  tbody tr:hover .rowdel{ opacity: 1; }
+
+  tfoot td{
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--ink-2);
+    border-top: 2px solid var(--line-strong);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  tfoot td.label{ font-family: var(--font-body); text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; color: var(--muted); }
+
+  .table-foot-bar{
+    display:flex;
+    justify-content: space-between;
+    align-items:center;
+    padding: 12px 18px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  details.context{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  details.context summary{
+    cursor: pointer;
+    padding: 13px 18px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14.5px;
+    list-style: none;
+    display:flex;
+    align-items:center;
+    gap: 8px;
+  }
+  details.context summary::-webkit-details-marker{ display:none; }
+  details.context summary::before{
+    content: "›";
+    display:inline-block;
+    transition: transform .15s ease;
+    color: var(--accent);
+    font-size: 18px;
+    line-height: 1;
+  }
+  details.context[open] summary::before{ transform: rotate(90deg); }
+  .context-body{
+    padding: 0 18px 18px;
+    font-size: 13px;
+    color: var(--ink-2);
+    display:flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .context-body .ctx-grid{
+    display:grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 10px;
+  }
+  .context-body .ctx-item{
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .context-body .ctx-item b{
+    display:block;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .context-body .ctx-item span{ font-size:11px; color: var(--muted); }
+
+  .toast{
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--ink);
+    color: var(--surface);
+    font-size: 12.5px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+    z-index: 100;
+    max-width: 420px;
+    text-align: center;
+  }
+  .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .empty-state{
+    padding: 40px 20px;
+    text-align:center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  @media (max-width: 880px){
+    .charts{ grid-template-columns: 1fr; }
+    .context-body .ctx-grid{ grid-template-columns: 1fr; }
+    .pos-grid{ grid-template-columns: repeat(2,1fr); }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="loginScreen">
+  <form class="login-card" id="loginForm">
+    <span class="mark">Cobranzas Cofarsur</span>
+    <div>
+      <h1>Iniciar sesión</h1>
+      <p class="hint">Acceso restringido al equipo de tesorería.</p>
+    </div>
+    <div class="login-field">
+      <label>Mail</label>
+      <input type="email" id="loginEmail" autocomplete="username" required />
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" required />
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button type="submit" class="primary" id="loginSubmit">Entrar</button>
+  </form>
+</div>
+
+<div class="app-screen" id="appScreen" hidden>
+  <div class="wrap">
+
+    <div class="topbar">
+      <div>
+        <div class="brand">
+          <span class="mark">Tesorería</span>
+        </div>
+        <h1>Pagos vs. Cobranzas — Cofarsur</h1>
+        <p>Objetivo semanal de cobranza para cubrir pagos sin salir a vender cheques.</p>
+      </div>
+      <div class="clock">
+        <div>Sincronizado · <b id="lastSaved">—</b></div>
+        <div id="todayLine"></div>
+        <div id="userLine" style="color:var(--ink-2);"></div>
+        <button class="ghost" id="btnLogout" style="padding:4px 9px;">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="panel" id="posPanel">
+      <div class="panel-head">
+        <div>
+          <h2>Posición de caja de hoy</h2>
+          <div class="desc" id="posDate">Cargá el archivo de Pagos (FFN) para completar esto solo, o escribilo a mano.</div>
+        </div>
+        <div class="actions">
+          <select class="sheet-picker" id="ffnSheetPicker" style="display:none;"></select>
+          <button class="ghost" id="btnLoadFFN">Cargar archivo de Pagos (FFN)</button>
+          <input type="file" id="ffnFileInput" accept=".xlsx" />
+        </div>
+      </div>
+      <div class="pos-grid">
+        <div class="pos-field">
+          <label>Saldo en banco</label>
+          <input type="number" step="0.01" id="posBanco" placeholder="0" />
+        </div>
+        <div class="pos-field">
+          <label>Cheques en cartera</label>
+          <input type="number" step="0.01" id="posCartera" placeholder="0" />
+        </div>
+        <div class="pos-field">
+          <label>Depósitos en tránsito</label>
+          <input type="number" step="0.01" id="posDepositos" placeholder="0" />
+        </div>
+        <div class="pos-field">
+          <label>NRD / cesiones pendientes</label>
+          <input type="number" step="0.01" id="posNrd" placeholder="0" />
+        </div>
+        <div class="pos-result">
+          <label style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;">Colchón neto</label>
+          <div class="pos-value" id="posColchon">$ 0,0 M</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpiRow"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Pagos, objetivo y cobranza real por semana</h2>
+          <div class="desc">En millones de pesos ($M). Pasá el mouse sobre una barra para el detalle.</div>
+        </div>
+        <div class="legend" id="legend1"></div>
+      </div>
+      <div class="chart-scroll"><svg class="chart" id="chartMain"></svg></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Posición de caja proyectada</h2>
+          <div class="desc">Colchón de hoy + lo que se cobra (real u objetivo) menos lo que se paga, semana a semana.</div>
+        </div>
+      </div>
+      <div class="chart-scroll"><svg class="chart" id="chartPos"></svg></div>
+    </div>
+
+    <div class="charts">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Faltante semanal</h2>
+            <div class="desc">Pagos necesarios menos cobranza real cargada.</div>
+          </div>
+        </div>
+        <div class="chart-scroll"><svg class="chart" id="chartGap"></svg></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Cumplimiento</h2>
+            <div class="desc">Real cargado sobre objetivo, semanas con dato.</div>
+          </div>
+        </div>
+        <div class="chart-scroll"><svg class="chart" id="chartComp"></svg></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Planilla semanal</h2>
+          <div class="desc">Pagos, objetivo y techo de cartera se pueden cargar solos desde los archivos. Cobranza real siempre se carga a mano.</div>
+        </div>
+        <div class="actions">
+          <button class="ghost" id="btnLoadCartera">Cargar cartera (Flujo de Fondos)</button>
+          <input type="file" id="carteraFileInput" accept=".xlsx" />
+          <button class="primary" id="btnAdd">+ Agregar semana</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Semana</th>
+              <th class="num">Pagos necesarios</th>
+              <th class="num">Objetivo cobranza</th>
+              <th class="num">Cobranza FFN</th>
+              <th class="num">Techo cartera</th>
+              <th class="num">Cobranza real</th>
+              <th class="num">Faltante</th>
+              <th class="num">Posición proy.</th>
+              <th class="num">Cumpl.</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+          <tfoot id="tfoot"></tfoot>
+        </table>
+      </div>
+      <div class="table-foot-bar">
+        <button class="ghost" id="btnReset">Restaurar semillas (ago 2026)</button>
+        <div class="desc" style="color:var(--muted); font-size:11.5px;">Los montos se cargan en millones de $ (ej: 7150 = $7.150 M)</div>
+      </div>
+    </div>
+
+    <details class="context">
+      <summary>Contexto: de dónde salen estos números</summary>
+      <div class="context-body">
+        <p>Las 4 semanas de agosto 2026 vienen precargadas de dos archivos: <b>FFN 2026.xlsx</b> (proyección de pagos: proveedores, sueldos, impuestos, cheques emitidos, más la posición de caja del día) y <b>Flujo de Fondos.xlsx</b> (vencimientos de cartera de clientes por cobrar, hojas A + QA). Con los botones de arriba se pueden cargar versiones nuevas de estos mismos archivos día a día — el sistema detecta la hoja más reciente sola, pero se puede elegir otra desde el desplegable si hace falta. Todo lo que se carga acá queda guardado en la base de datos compartida, no en este navegador.</p>
+        <div class="ctx-grid">
+          <div class="ctx-item"><b>$19.100 M</b><span>Pagos proyectados agosto (4 semanas completas)</span></div>
+          <div class="ctx-item"><b>$14.167 M</b><span>Cobranza conservadora proyectada agosto (según FFN)</span></div>
+          <div class="ctx-item"><b>$23–26 mil M</b><span>Cobranza real mensual histórica (abr–jun 2026), para chequear si agosto es realista</span></div>
+        </div>
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<div class="bar-tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
