@@ -293,7 +293,7 @@
 
       var tdReal = document.createElement("td");
       tdReal.className = "num";
-      tdReal.appendChild(fieldInput(w, "real", { placeholder: "sin cargar", nullable: true }));
+      tdReal.appendChild(fieldInput(w, "real", { placeholder: "vacío", nullable: true }));
       tr.appendChild(tdReal);
 
       var tdGap = document.createElement("td");
