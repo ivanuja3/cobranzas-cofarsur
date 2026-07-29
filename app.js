@@ -887,8 +887,14 @@
     }
   });
 
-  /* ---------------- section tabs ---------------- */
+  /* ---------------- section tabs (segmented control) ---------------- */
   var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas" };
+  function moveTabIndicator(btn){
+    var indicator = document.getElementById("tabIndicator");
+    if (!btn || !indicator) return;
+    indicator.style.width = btn.offsetWidth + "px";
+    indicator.style.transform = "translateX(" + btn.offsetLeft + "px)";
+  }
   document.getElementById("tabNav").addEventListener("click", function(e){
     var btn = e.target.closest(".tab-pill");
     if (!btn) return;
@@ -897,6 +903,10 @@
     Object.keys(TAB_SECTIONS).forEach(function(k){
       document.getElementById(TAB_SECTIONS[k]).hidden = (k !== key);
     });
+    moveTabIndicator(btn);
+  });
+  window.addEventListener("resize", function(){
+    moveTabIndicator(document.querySelector(".tab-pill.active"));
   });
 
   /* ---------------- clock ---------------- */
@@ -934,6 +944,7 @@
     document.getElementById("loginScreen").hidden = true;
     document.getElementById("appScreen").hidden = false;
     document.getElementById("userLine").textContent = session.user.email;
+    requestAnimationFrame(function(){ moveTabIndicator(document.querySelector(".tab-pill.active")); });
     bootData();
   }
 
