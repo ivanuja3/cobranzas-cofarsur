@@ -887,15 +887,334 @@
     }
   });
 
+  /* ---------------- clientes (análisis de cartera / mora) ---------------- */
+  var clientes = [];
+  var clientesLoaded = false;
+  var clientesSort = { field: "tot_credito", dir: "desc" };
+  var clientesSearchDebounce = null;
+
+  var nfARS = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
+  function fmtARS(v){
+    if (v === null || v === undefined || isNaN(v)) return "—";
+    return "$ " + nfARS.format(v);
+  }
+
+  async function fetchClientes(){
+    var all = [];
+    var page = 1000, from = 0;
+    while (true){
+      var res = await supa.from("clientes_credito").select("*").range(from, from + page - 1);
+      if (res.error){ toast("No se pudo cargar clientes: " + res.error.message); break; }
+      all = all.concat(res.data);
+      if (res.data.length < page) break;
+      from += page;
+    }
+    return all;
+  }
+
+  function rawLabel(s){ return (s||"").toString().toLowerCase().trim(); }
+
+  function extractClientesWorkbook(wb, sheetName){
+    sheetName = sheetName || wb.SheetNames[0];
+    var rows = sheetRows(wb, sheetName);
+    var headerIdx = -1, header = null;
+    for (var i=0;i<rows.length;i++){
+      var r = rows[i];
+      if (!r) continue;
+      if (r.some(function(c){ return rawLabel(c) === "cliente"; })){ headerIdx = i; header = r; break; }
+    }
+    if (headerIdx === -1) throw new Error("no encontré la fila de encabezados (columna 'Cliente')");
+
+    var col = {};
+    header.forEach(function(cell, idx){
+      var n = rawLabel(cell);
+      if (n === "id") col.id = idx;
+      else if (n === "cliente") col.cliente = idx;
+      else if (n === "cadena") col.cadena = idx;
+      else if (n === "zona") col.zona = idx;
+      else if (n === "zona comercial") col.zona_comercial = idx;
+      else if (n === "prov." || n === "prov") col.provincia = idx;
+      else if (n === "activo") col.activo = idx;
+      else if (/^d.as mora$/.test(n)) col.dias_mora = idx;
+      else if (n === "% mora") col.pct_mora = idx;
+      else if (n === "venci men 30") col.venci_30 = idx;
+      else if (n === "venci men 60") col.venci_60 = idx;
+      else if (n === "venci men 90") col.venci_90 = idx;
+      else if (n.indexOf("venci may") === 0) col.venci_may90 = idx;
+      else if (n === "no vdos") col.no_vencido = idx;
+      else if (n === "sin res") col.sin_res = idx;
+      else if (n.indexOf("tot") !== -1 && n.indexOf("credito") !== -1) col.tot_credito = idx;
+    });
+
+    var required = ["id","cliente","venci_30","venci_60","venci_90","venci_may90","tot_credito"];
+    var missing = required.filter(function(k){ return col[k] === undefined; });
+    if (missing.length) throw new Error("no encontré estas columnas: " + missing.join(", "));
+
+    function num(v){ return (v === null || v === undefined || v === "") ? 0 : (Number(v)||0); }
+    function txt(v){ return (v === null || v === undefined) ? null : String(v).replace(/�/g, "Ñ").trim(); }
+
+    var out = [];
+    for (var j=headerIdx+1;j<rows.length;j++){
+      var row = rows[j];
+      if (!row) continue;
+      var clienteVal = row[col.cliente];
+      var idVal = row[col.id];
+      if (clienteVal === null || clienteVal === undefined || clienteVal === "") continue;
+      if (idVal === null || idVal === undefined) continue;
+      out.push({
+        id: Number(idVal),
+        cliente: txt(clienteVal),
+        cadena: col.cadena !== undefined ? txt(row[col.cadena]) : null,
+        zona: col.zona !== undefined ? txt(row[col.zona]) : null,
+        zona_comercial: col.zona_comercial !== undefined ? txt(row[col.zona_comercial]) : null,
+        provincia: col.provincia !== undefined ? txt(row[col.provincia]) : null,
+        activo: col.activo !== undefined ? (row[col.activo] === "SI") : null,
+        dias_mora: col.dias_mora !== undefined ? Math.round(num(row[col.dias_mora])) : null,
+        pct_mora: col.pct_mora !== undefined ? num(row[col.pct_mora]) : null,
+        venci_30: num(row[col.venci_30]),
+        venci_60: num(row[col.venci_60]),
+        venci_90: num(row[col.venci_90]),
+        venci_may90: num(row[col.venci_may90]),
+        no_vencido: col.no_vencido !== undefined ? num(row[col.no_vencido]) : 0,
+        sin_res: col.sin_res !== undefined ? num(row[col.sin_res]) : 0,
+        tot_credito: num(row[col.tot_credito])
+      });
+    }
+    return out;
+  }
+
+  async function mergeClientes(rows, sourceLabel){
+    await supa.from("clientes_credito").delete().neq("id", -1);
+    var CHUNK = 500;
+    for (var i=0;i<rows.length;i+=CHUNK){
+      var chunk = rows.slice(i, i+CHUNK);
+      var res = await supa.from("clientes_credito").insert(chunk);
+      if (res.error){ toast("Error cargando clientes (fila ~" + i + "): " + res.error.message); return; }
+    }
+    clientes = await fetchClientes();
+    clientesLoaded = true;
+    document.getElementById("clientesFecha").textContent = "Cartera cargada desde " + sourceLabel + " · " + clientes.length + " clientes";
+    renderClientesAll();
+    toast(rows.length + " clientes cargados en la base compartida.");
+  }
+
+  document.getElementById("btnLoadClientes").addEventListener("click", function(){
+    document.getElementById("clientesFileInput").click();
+  });
+  document.getElementById("clientesFileInput").addEventListener("change", async function(evt){
+    var file = evt.target.files[0];
+    evt.target.value = "";
+    if (!file) return;
+    toast("Leyendo archivo, puede tardar unos segundos...");
+    try{
+      var wb = await readWorkbook(file);
+      var parsed = extractClientesWorkbook(wb);
+      await mergeClientes(parsed, file.name);
+    }catch(e){
+      toast("No se pudo procesar el archivo: " + e.message);
+    }
+  });
+
+  function clientesBucketTotals(){
+    var t = { b30:0, b60:0, b90:0, bmay90:0, n30:0, n60:0, n90:0, nmay90:0, nMora:0 };
+    clientes.forEach(function(c){
+      if (c.venci_30 > 0){ t.b30 += c.venci_30; t.n30++; }
+      if (c.venci_60 > 0){ t.b60 += c.venci_60; t.n60++; }
+      if (c.venci_90 > 0){ t.b90 += c.venci_90; t.n90++; }
+      if (c.venci_may90 > 0){ t.bmay90 += c.venci_may90; t.nmay90++; }
+      if ((c.venci_30||0)+(c.venci_60||0)+(c.venci_90||0)+(c.venci_may90||0) > 0) t.nMora++;
+    });
+    return t;
+  }
+
+  function renderKPIsClientes(){
+    var row = document.getElementById("kpiClientesRow");
+    row.innerHTML = "";
+    if (!clientes.length){
+      row.innerHTML = '<div class="kpi"><div class="label">Sin datos</div><div class="value">—</div><div class="sub">Cargá el archivo de análisis de clientes</div></div>';
+      return;
+    }
+    var t = clientesBucketTotals();
+    var topMora = clientes.slice().sort(function(a,b){ return (b.venci_may90||0) - (a.venci_may90||0); })[0];
+    var totalVencido = t.b30 + t.b60 + t.b90 + t.bmay90;
+
+    var cards = [
+      { label: "Clientes en mora", value: t.nMora.toLocaleString("es-AR"), sub: "de " + clientes.length.toLocaleString("es-AR") + " clientes totales", stripe: "" },
+      { label: "Total vencido", value: fmtARS(totalVencido), sub: "suma de los 4 rangos", stripe: "stripe-warning" },
+      { label: "Monto +90 días", value: fmtARS(t.bmay90), sub: t.nmay90 + " cliente(s) en este rango", stripe: "stripe-critical" },
+      { label: "Cliente más atrasado", value: topMora ? topMora.cliente : "—", sub: topMora ? (fmtARS(topMora.venci_may90) + " · " + (topMora.dias_mora||0) + " días") : "", stripe: "stripe-critical" }
+    ];
+    cards.forEach(function(c){
+      var div = document.createElement("div");
+      div.className = "kpi " + (c.stripe||"");
+      div.innerHTML = '<div class="label">'+c.label+'</div><div class="value" style="font-size:20px;">'+c.value+'</div><div class="sub">'+c.sub+'</div>';
+      row.appendChild(div);
+    });
+  }
+
+  function renderChartMora(){
+    var svg = document.getElementById("chartMora");
+    svg.innerHTML = "";
+    if (!clientes.length){ svg.setAttribute("width",0); svg.setAttribute("height",0); return; }
+
+    var t = clientesBucketTotals();
+    var data = [
+      { label: "1-30 días", v: t.b30, n: t.n30, color: "var(--good)" },
+      { label: "31-60 días", v: t.b60, n: t.n60, color: "var(--warning)" },
+      { label: "61-90 días", v: t.b90, n: t.n90, color: "var(--warning)" },
+      { label: "+90 días", v: t.bmay90, n: t.nmay90, color: "var(--critical)" }
+    ];
+
+    var barW = 90, groupW = 150, padL = 80, padR = 20, padT = 30, padB = 34;
+    var h = 220;
+    var w = padL + padR + data.length*groupW;
+    svg.setAttribute("width", w);
+    svg.setAttribute("height", h);
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+
+    var maxVal = Math.max.apply(null, data.map(function(d){ return d.v; }).concat([1])) * 1.15;
+    var plotH = h - padT - padB;
+    function y(v){ return padT + plotH - (v/maxVal)*plotH; }
+
+    var ticks = 4;
+    for (var t2=0;t2<=ticks;t2++){
+      var v = maxVal * t2/ticks;
+      var yy = y(v);
+      svg.appendChild(svgEl("line", {x1:padL, x2:w-padR, y1:yy, y2:yy, stroke:"var(--line)", "stroke-width":1}));
+      var lbl = svgEl("text", {x:padL-10, y:yy+3, "text-anchor":"end", fill:"var(--muted)", "font-size":10, "font-family":"var(--font-mono)"});
+      lbl.textContent = Math.round(v).toLocaleString("es-AR");
+      svg.appendChild(lbl);
+    }
+
+    data.forEach(function(d, i){
+      var gx = padL + i*groupW + (groupW-barW)/2;
+      var barY = y(d.v);
+      var rect = svgEl("rect", { x:gx, y:barY, width:barW, height: Math.max(plotH-(barY-padT),1.5), rx:6, fill:d.color, style:"cursor:pointer" });
+      rect.addEventListener("mousemove", function(evt){
+        showTip(evt, d.label, [fmtARS(d.v), d.n + " cliente(s)"]);
+      });
+      rect.addEventListener("mouseleave", hideTip);
+      svg.appendChild(rect);
+
+      var valLab = svgEl("text", {x: gx+barW/2, y: barY-9, "text-anchor":"middle", fill:"var(--ink)", "font-size":12.5, "font-weight":700, "font-family":"var(--font-mono)"});
+      valLab.textContent = "$ " + (d.v/1e6).toLocaleString("es-AR", {maximumFractionDigits: 1}) + " M";
+      svg.appendChild(valLab);
+
+      var lab = svgEl("text", {x: gx+barW/2, y: h-14, "text-anchor":"middle", fill:"var(--ink-2)", "font-size":12, "font-weight":600, "font-family":"var(--font-body)"});
+      lab.textContent = d.label;
+      svg.appendChild(lab);
+    });
+  }
+
+  function clientesFiltered(){
+    var filtro = document.getElementById("clientesFiltro").value;
+    var search = document.getElementById("clientesSearch").value.trim().toLowerCase();
+    var list = clientes.filter(function(c){
+      if (filtro === "mora") return (c.venci_30||0)+(c.venci_60||0)+(c.venci_90||0)+(c.venci_may90||0) > 0;
+      if (filtro === "30") return (c.venci_30||0) > 0;
+      if (filtro === "60") return (c.venci_60||0) > 0;
+      if (filtro === "90") return (c.venci_90||0) > 0;
+      if (filtro === "may90") return (c.venci_may90||0) > 0;
+      return true;
+    });
+    if (search){
+      list = list.filter(function(c){ return c.cliente && c.cliente.toLowerCase().indexOf(search) !== -1; });
+    }
+    var f = clientesSort.field, dir = clientesSort.dir === "asc" ? 1 : -1;
+    list.sort(function(a,b){
+      var av = a[f], bv = b[f];
+      if (typeof av === "string" || typeof bv === "string"){
+        av = (av||"").toString(); bv = (bv||"").toString();
+        return av.localeCompare(bv) * dir;
+      }
+      return ((av||0) - (bv||0)) * dir;
+    });
+    return list;
+  }
+
+  function renderTablaClientes(){
+    var tbody = document.getElementById("tbodyClientes");
+    tbody.innerHTML = "";
+    var list = clientesFiltered();
+
+    document.getElementById("clientesCount").textContent = list.length.toLocaleString("es-AR") + " cliente(s) — montos en pesos";
+
+    if (!list.length){
+      var tr = document.createElement("tr");
+      var td = document.createElement("td");
+      td.colSpan = 8;
+      td.innerHTML = '<div class="empty-state">Sin resultados para este filtro/búsqueda.</div>';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    list.forEach(function(c){
+      var tr = document.createElement("tr");
+      function cell(txt, cls){ var td = document.createElement("td"); if (cls) td.className = cls; td.textContent = txt; return td; }
+      tr.appendChild(cell(c.cliente || "—"));
+      tr.appendChild(cell(c.zona || c.provincia || "—"));
+      tr.appendChild(cell(c.venci_30 > 0 ? fmtARS(c.venci_30) : "—", "num auto-val"));
+      tr.appendChild(cell(c.venci_60 > 0 ? fmtARS(c.venci_60) : "—", "num auto-val"));
+      tr.appendChild(cell(c.venci_90 > 0 ? fmtARS(c.venci_90) : "—", "num auto-val"));
+      var tdMay90 = cell(c.venci_may90 > 0 ? fmtARS(c.venci_may90) : "—", "num");
+      if (c.venci_may90 > 0) tdMay90.style.color = "var(--critical)";
+      tdMay90.style.fontWeight = "600";
+      tr.appendChild(tdMay90);
+      tr.appendChild(cell(c.dias_mora !== null ? c.dias_mora.toLocaleString("es-AR") : "—", "num auto-val"));
+      tr.appendChild(cell(fmtARS(c.tot_credito), "num auto-val"));
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+  }
+
+  function renderSortArrows(){
+    document.querySelectorAll("#tablaClientes th[data-sort]").forEach(function(th){
+      var base = th.textContent.replace(/[▲▼]\s*$/,"").trim();
+      if (th.dataset.sort === clientesSort.field){
+        th.innerHTML = base + '<span class="sort-arrow">' + (clientesSort.dir === "asc" ? "▲" : "▼") + '</span>';
+      } else {
+        th.textContent = base;
+      }
+    });
+  }
+
+  function renderClientesAll(){
+    renderKPIsClientes();
+    renderChartMora();
+    renderSortArrows();
+    renderTablaClientes();
+  }
+
+  document.querySelectorAll("#tablaClientes th[data-sort]").forEach(function(th){
+    th.addEventListener("click", function(){
+      var field = th.dataset.sort;
+      if (clientesSort.field === field){
+        clientesSort.dir = clientesSort.dir === "asc" ? "desc" : "asc";
+      } else {
+        clientesSort.field = field;
+        clientesSort.dir = (field === "cliente" || field === "zona") ? "asc" : "desc";
+      }
+      renderSortArrows();
+      renderTablaClientes();
+    });
+  });
+  document.getElementById("clientesFiltro").addEventListener("change", renderTablaClientes);
+  document.getElementById("clientesSearch").addEventListener("input", function(){
+    clearTimeout(clientesSearchDebounce);
+    clientesSearchDebounce = setTimeout(renderTablaClientes, 200);
+  });
+
   /* ---------------- section tabs (segmented control) ---------------- */
-  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas" };
+  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas", clientes: "tabClientes" };
   function moveTabIndicator(btn){
     var indicator = document.getElementById("tabIndicator");
     if (!btn || !indicator) return;
     indicator.style.width = btn.offsetWidth + "px";
     indicator.style.transform = "translateX(" + btn.offsetLeft + "px)";
   }
-  document.getElementById("tabNav").addEventListener("click", function(e){
+  document.getElementById("tabNav").addEventListener("click", async function(e){
     var btn = e.target.closest(".tab-pill");
     if (!btn) return;
     var key = btn.dataset.tab;
@@ -904,6 +1223,13 @@
       document.getElementById(TAB_SECTIONS[k]).hidden = (k !== key);
     });
     moveTabIndicator(btn);
+    if (key === "clientes" && !clientesLoaded){
+      clientesLoaded = true;
+      document.getElementById("clientesFecha").textContent = "Cargando...";
+      clientes = await fetchClientes();
+      document.getElementById("clientesFecha").textContent = clientes.length ? (clientes.length + " clientes cargados") : "Cargá el export de \"Análisis de clientes\" para completar esto.";
+      renderClientesAll();
+    }
   });
   window.addEventListener("resize", function(){
     moveTabIndicator(document.querySelector(".tab-pill.active"));
