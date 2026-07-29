@@ -434,6 +434,37 @@
     font-size: 19px;
     font-weight: 700;
   }
+  /* ---------- section tabs ---------- */
+  .tab-nav{
+    display:flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tab-pill{
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 100px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .tab-pill:hover{ background: var(--surface-2); }
+  .tab-pill.active{
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fbfdfc;
+  }
+  .tab-section{
+    display:flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .tab-section[hidden]{ display:none; }
+
   select.sheet-picker{
     font-family: var(--font-body);
     font-size: 12px;
@@ -718,136 +749,149 @@
       </div>
     </div>
 
-    <div class="panel" id="posPanel">
-      <div class="panel-head">
-        <div>
-          <h2>Posición de caja de hoy</h2>
-          <div class="desc" id="posDate">Cargá el archivo de Pagos (FFN) para completar esto solo, o escribilo a mano.</div>
-        </div>
-        <div class="actions">
-          <select class="sheet-picker" id="ffnSheetPicker" style="display:none;"></select>
-          <button class="ghost" id="btnLoadFFN">Cargar archivo de Pagos (FFN)</button>
-          <input type="file" id="ffnFileInput" accept=".xlsx" />
-        </div>
-      </div>
-      <div class="pos-grid">
-        <div class="pos-field">
-          <label>Saldo en banco</label>
-          <input type="number" step="0.01" id="posBanco" placeholder="0" />
-        </div>
-        <div class="pos-field">
-          <label>Cheques en cartera</label>
-          <input type="number" step="0.01" id="posCartera" placeholder="0" />
-        </div>
-        <div class="pos-field">
-          <label>Depósitos en tránsito</label>
-          <input type="number" step="0.01" id="posDepositos" placeholder="0" />
-        </div>
-        <div class="pos-field">
-          <label>NRD / cesiones pendientes</label>
-          <input type="number" step="0.01" id="posNrd" placeholder="0" />
-        </div>
-        <div class="pos-result">
-          <label style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;">Colchón neto</label>
-          <div class="pos-value" id="posColchon">$ 0,0 M</div>
-        </div>
-      </div>
-    </div>
+    <nav class="tab-nav" id="tabNav">
+      <button type="button" class="tab-pill active" data-tab="dashboard">Dashboard</button>
+      <button type="button" class="tab-pill" data-tab="cobranzas">Cobranzas vs. Pagos</button>
+    </nav>
 
-    <div class="kpis" id="kpiRow"></div>
+    <section class="tab-section" id="tabDashboard">
 
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>Pagos, objetivo y cobranza real por semana</h2>
-          <div class="desc">En millones de pesos ($M). Pasá el mouse sobre una barra para el detalle.</div>
-        </div>
-        <div class="legend" id="legend1"></div>
-      </div>
-      <div class="chart-scroll"><svg class="chart" id="chartMain"></svg></div>
-    </div>
+      <div class="kpis" id="kpiRow"></div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>Posición de caja proyectada</h2>
-          <div class="desc">Colchón de hoy + lo que se cobra (real u objetivo) menos lo que se paga, semana a semana.</div>
-        </div>
-      </div>
-      <div class="chart-scroll"><svg class="chart" id="chartPos"></svg></div>
-    </div>
-
-    <div class="charts">
       <div class="panel">
         <div class="panel-head">
           <div>
-            <h2>Faltante semanal</h2>
-            <div class="desc">Pagos necesarios menos cobranza real cargada.</div>
+            <h2>Pagos, objetivo y cobranza real por semana</h2>
+            <div class="desc">En millones de pesos ($M). Pasá el mouse sobre una barra para el detalle.</div>
           </div>
+          <div class="legend" id="legend1"></div>
         </div>
-        <div class="chart-scroll"><svg class="chart" id="chartGap"></svg></div>
+        <div class="chart-scroll"><svg class="chart" id="chartMain"></svg></div>
       </div>
+
       <div class="panel">
         <div class="panel-head">
           <div>
-            <h2>Cumplimiento</h2>
-            <div class="desc">Real cargado sobre objetivo, semanas con dato.</div>
+            <h2>Posición de caja proyectada</h2>
+            <div class="desc">Colchón de hoy + lo que se cobra (real u objetivo) menos lo que se paga, semana a semana.</div>
           </div>
         </div>
-        <div class="chart-scroll"><svg class="chart" id="chartComp"></svg></div>
+        <div class="chart-scroll"><svg class="chart" id="chartPos"></svg></div>
       </div>
-    </div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>Planilla semanal</h2>
-          <div class="desc">Pagos, objetivo y techo de cartera se pueden cargar solos desde los archivos. Cobranza real siempre se carga a mano.</div>
-        </div>
-        <div class="actions">
-          <button class="ghost" id="btnLoadCartera">Cargar cartera (Flujo de Fondos)</button>
-          <input type="file" id="carteraFileInput" accept=".xlsx" />
-          <button class="primary" id="btnAdd">+ Agregar semana</button>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Semana</th>
-              <th class="num">Pagos necesarios</th>
-              <th class="num">Objetivo cobranza</th>
-              <th class="num">Cobranza FFN</th>
-              <th class="num">Techo cartera</th>
-              <th class="num">Cobranza real</th>
-              <th class="num">Faltante</th>
-              <th class="num">Posición proy.</th>
-              <th class="num">Cumpl.</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-          <tfoot id="tfoot"></tfoot>
-        </table>
-      </div>
-      <div class="table-foot-bar">
-        <button class="ghost" id="btnReset">Restaurar semillas (ago 2026)</button>
-        <div class="desc" style="color:var(--muted); font-size:11.5px;">Los montos se cargan en millones de $ (ej: 7150 = $7.150 M)</div>
-      </div>
-    </div>
+    </section>
 
-    <details class="context">
-      <summary>Contexto: de dónde salen estos números</summary>
-      <div class="context-body">
-        <p>Las 4 semanas de agosto 2026 vienen precargadas de dos archivos: <b>FFN 2026.xlsx</b> (proyección de pagos: proveedores, sueldos, impuestos, cheques emitidos, más la posición de caja del día) y <b>Flujo de Fondos.xlsx</b> (vencimientos de cartera de clientes por cobrar, hojas A + QA). Con los botones de arriba se pueden cargar versiones nuevas de estos mismos archivos día a día — el sistema detecta la hoja más reciente sola, pero se puede elegir otra desde el desplegable si hace falta. Todo lo que se carga acá queda guardado en la base de datos compartida, no en este navegador.</p>
-        <div class="ctx-grid">
-          <div class="ctx-item"><b>$19.100 M</b><span>Pagos proyectados agosto (4 semanas completas)</span></div>
-          <div class="ctx-item"><b>$14.167 M</b><span>Cobranza conservadora proyectada agosto (según FFN)</span></div>
-          <div class="ctx-item"><b>$23–26 mil M</b><span>Cobranza real mensual histórica (abr–jun 2026), para chequear si agosto es realista</span></div>
+    <section class="tab-section" id="tabCobranzas" hidden>
+
+      <div class="panel" id="posPanel">
+        <div class="panel-head">
+          <div>
+            <h2>Posición de caja de hoy</h2>
+            <div class="desc" id="posDate">Cargá el archivo de Pagos (FFN) para completar esto solo, o escribilo a mano.</div>
+          </div>
+          <div class="actions">
+            <select class="sheet-picker" id="ffnSheetPicker" style="display:none;"></select>
+            <button class="ghost" id="btnLoadFFN">Cargar archivo de Pagos (FFN)</button>
+            <input type="file" id="ffnFileInput" accept=".xlsx" />
+          </div>
+        </div>
+        <div class="pos-grid">
+          <div class="pos-field">
+            <label>Saldo en banco</label>
+            <input type="number" step="0.01" id="posBanco" placeholder="0" />
+          </div>
+          <div class="pos-field">
+            <label>Cheques en cartera</label>
+            <input type="number" step="0.01" id="posCartera" placeholder="0" />
+          </div>
+          <div class="pos-field">
+            <label>Depósitos en tránsito</label>
+            <input type="number" step="0.01" id="posDepositos" placeholder="0" />
+          </div>
+          <div class="pos-field">
+            <label>NRD / cesiones pendientes</label>
+            <input type="number" step="0.01" id="posNrd" placeholder="0" />
+          </div>
+          <div class="pos-result">
+            <label style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;">Colchón neto</label>
+            <div class="pos-value" id="posColchon">$ 0,0 M</div>
+          </div>
         </div>
       </div>
-    </details>
+
+      <div class="charts">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Faltante semanal</h2>
+              <div class="desc">Pagos necesarios menos cobranza real cargada.</div>
+            </div>
+          </div>
+          <div class="chart-scroll"><svg class="chart" id="chartGap"></svg></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Cumplimiento</h2>
+              <div class="desc">Real cargado sobre objetivo, semanas con dato.</div>
+            </div>
+          </div>
+          <div class="chart-scroll"><svg class="chart" id="chartComp"></svg></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Planilla semanal</h2>
+            <div class="desc">Pagos, objetivo y techo de cartera se pueden cargar solos desde los archivos. Cobranza real siempre se carga a mano.</div>
+          </div>
+          <div class="actions">
+            <button class="ghost" id="btnLoadCartera">Cargar cartera (Flujo de Fondos)</button>
+            <input type="file" id="carteraFileInput" accept=".xlsx" />
+            <button class="primary" id="btnAdd">+ Agregar semana</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Semana</th>
+                <th class="num">Pagos necesarios</th>
+                <th class="num">Objetivo cobranza</th>
+                <th class="num">Cobranza FFN</th>
+                <th class="num">Techo cartera</th>
+                <th class="num">Cobranza real</th>
+                <th class="num">Faltante</th>
+                <th class="num">Posición proy.</th>
+                <th class="num">Cumpl.</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+            <tfoot id="tfoot"></tfoot>
+          </table>
+        </div>
+        <div class="table-foot-bar">
+          <button class="ghost" id="btnReset">Restaurar semillas (ago 2026)</button>
+          <div class="desc" style="color:var(--muted); font-size:11.5px;">Los montos se cargan en millones de $ (ej: 7150 = $7.150 M)</div>
+        </div>
+      </div>
+
+      <details class="context">
+        <summary>Contexto: de dónde salen estos números</summary>
+        <div class="context-body">
+          <p>Las 4 semanas de agosto 2026 vienen precargadas de dos archivos: <b>FFN 2026.xlsx</b> (proyección de pagos: proveedores, sueldos, impuestos, cheques emitidos, más la posición de caja del día) y <b>Flujo de Fondos.xlsx</b> (vencimientos de cartera de clientes por cobrar, hojas A + QA). Con los botones de arriba se pueden cargar versiones nuevas de estos mismos archivos día a día — el sistema detecta la hoja más reciente sola, pero se puede elegir otra desde el desplegable si hace falta. Todo lo que se carga acá queda guardado en la base de datos compartida, no en este navegador.</p>
+          <div class="ctx-grid">
+            <div class="ctx-item"><b>$19.100 M</b><span>Pagos proyectados agosto (4 semanas completas)</span></div>
+            <div class="ctx-item"><b>$14.167 M</b><span>Cobranza conservadora proyectada agosto (según FFN)</span></div>
+            <div class="ctx-item"><b>$23–26 mil M</b><span>Cobranza real mensual histórica (abr–jun 2026), para chequear si agosto es realista</span></div>
+          </div>
+        </div>
+      </details>
+
+    </section>
 
   </div>
 </div>

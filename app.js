@@ -887,6 +887,18 @@
     }
   });
 
+  /* ---------------- section tabs ---------------- */
+  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas" };
+  document.getElementById("tabNav").addEventListener("click", function(e){
+    var btn = e.target.closest(".tab-pill");
+    if (!btn) return;
+    var key = btn.dataset.tab;
+    document.querySelectorAll(".tab-pill").forEach(function(p){ p.classList.toggle("active", p === btn); });
+    Object.keys(TAB_SECTIONS).forEach(function(k){
+      document.getElementById(TAB_SECTIONS[k]).hidden = (k !== key);
+    });
+  });
+
   /* ---------------- clock ---------------- */
   function renderClock(){
     var el = document.getElementById("todayLine");
