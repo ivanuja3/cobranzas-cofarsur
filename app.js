@@ -47,7 +47,7 @@
   var lastFFNWorkbook = null;
   var lastCarteraWorkbook = null;
 
-  function emptyPosicion(){ return { banco: null, cartera: null, depositos: null, nrd: null, fecha: null }; }
+  function emptyPosicion(){ return { banco: null, cartera: null, depositos: null, nrd: null, fecha: null, updatedAt: null }; }
 
   function rowToWeek(r){
     return {
@@ -58,8 +58,25 @@
       objetivoCustom: !!r.objetivo_custom,
       cartera: r.techo_cartera === null ? null : Number(r.techo_cartera),
       ffnProy: r.cobranza_ffn === null ? null : Number(r.cobranza_ffn),
-      real: r.cobranza_real === null ? null : Number(r.cobranza_real)
+      real: r.cobranza_real === null ? null : Number(r.cobranza_real),
+      updatedAt: r.updated_at || null
     };
+  }
+
+  function fmtUpdatedAt(dateLike){
+    if (!dateLike) return "Sin datos cargados todavía";
+    var d = new Date(dateLike);
+    return "Última actualización: " + d.toLocaleDateString("es-AR", { day:"numeric", month:"short" }) + ", " + d.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
+  }
+  function maxUpdatedAt(list, field){
+    var latest = null;
+    list.forEach(function(item){
+      var v = field ? item[field] : item;
+      if (!v) return;
+      var d = new Date(v);
+      if (!latest || d > latest) latest = d;
+    });
+    return latest;
   }
 
   function sortWeeks(){
@@ -135,7 +152,8 @@
       cartera: res.data.cartera === null ? null : Number(res.data.cartera),
       depositos: res.data.depositos === null ? null : Number(res.data.depositos),
       nrd: res.data.nrd === null ? null : Number(res.data.nrd),
-      fecha: res.data.fecha
+      fecha: res.data.fecha,
+      updatedAt: res.data.updated_at || null
     };
   }
 
@@ -993,7 +1011,7 @@
     }
     clientes = await fetchClientes();
     clientesLoaded = true;
-    document.getElementById("clientesFecha").textContent = "Cartera cargada desde " + sourceLabel + " · " + clientes.length + " clientes";
+    document.getElementById("clientesFecha").textContent = clientes.length + " clientes · " + fmtUpdatedAt(maxUpdatedAt(clientes, "updated_at"));
     renderClientesAll();
     toast(rows.length + " clientes cargados en la base compartida.");
   }
@@ -1027,6 +1045,13 @@
     return t;
   }
 
+  var BUCKET_META = {
+    "30":    { field: "venci_30",    label: "1-30 días",   stripe: "stripe-good" },
+    "60":    { field: "venci_60",    label: "31-60 días",  stripe: "stripe-warning" },
+    "90":    { field: "venci_90",    label: "61-90 días",  stripe: "stripe-warning" },
+    "may90": { field: "venci_may90", label: "+90 días",    stripe: "stripe-critical" }
+  };
+
   function renderKPIsClientes(){
     var row = document.getElementById("kpiClientesRow");
     row.innerHTML = "";
@@ -1035,15 +1060,34 @@
       return;
     }
     var t = clientesBucketTotals();
-    var topMora = clientes.slice().sort(function(a,b){ return (b.venci_may90||0) - (a.venci_may90||0); })[0];
     var totalVencido = t.b30 + t.b60 + t.b90 + t.bmay90;
+    var filtro = document.getElementById("clientesFiltro").value;
+    var bucket = BUCKET_META[filtro];
+    var cards;
 
-    var cards = [
-      { label: "Clientes en mora", value: t.nMora.toLocaleString("es-AR"), sub: "de " + clientes.length.toLocaleString("es-AR") + " clientes totales", stripe: "" },
-      { label: "Total vencido", value: fmtARS(totalVencido), sub: "suma de los 4 rangos", stripe: "stripe-warning" },
-      { label: "Monto +90 días", value: fmtARS(t.bmay90), sub: t.nmay90 + " cliente(s) en este rango", stripe: "stripe-critical" },
-      { label: "Cliente más atrasado", value: topMora ? topMora.cliente : "—", sub: topMora ? (fmtARS(topMora.venci_may90) + " · " + (topMora.dias_mora||0) + " días") : "", stripe: "stripe-critical" }
-    ];
+    if (bucket){
+      var field = bucket.field;
+      var enRango = clientes.filter(function(c){ return (c[field]||0) > 0; });
+      var monto = enRango.reduce(function(a,c){ return a + (c[field]||0); }, 0);
+      var top = enRango.slice().sort(function(a,b){ return (b[field]||0) - (a[field]||0); })[0];
+      var pct = totalVencido ? (monto/totalVencido*100) : 0;
+
+      cards = [
+        { label: "Clientes en " + bucket.label, value: enRango.length.toLocaleString("es-AR"), sub: "de " + clientes.length.toLocaleString("es-AR") + " clientes totales", stripe: "" },
+        { label: "Monto en " + bucket.label, value: fmtARS(monto), sub: pct.toFixed(1) + "% del total vencido", stripe: bucket.stripe },
+        { label: "Cliente más grande", value: top ? top.cliente : "—", sub: top ? fmtARS(top[field]) : "", stripe: bucket.stripe },
+        { label: "Días mora promedio", value: enRango.length ? Math.round(enRango.reduce(function(a,c){ return a+(c.dias_mora||0); },0)/enRango.length).toLocaleString("es-AR") : "—", sub: "en este rango", stripe: "" }
+      ];
+    } else {
+      var topMora = clientes.slice().sort(function(a,b){ return (b.venci_may90||0) - (a.venci_may90||0); })[0];
+      cards = [
+        { label: "Clientes en mora", value: t.nMora.toLocaleString("es-AR"), sub: "de " + clientes.length.toLocaleString("es-AR") + " clientes totales", stripe: "" },
+        { label: "Total vencido", value: fmtARS(totalVencido), sub: "suma de los 4 rangos", stripe: "stripe-warning" },
+        { label: "Monto +90 días", value: fmtARS(t.bmay90), sub: t.nmay90 + " cliente(s) en este rango", stripe: "stripe-critical" },
+        { label: "Cliente más atrasado", value: topMora ? topMora.cliente : "—", sub: topMora ? (fmtARS(topMora.venci_may90) + " · " + (topMora.dias_mora||0) + " días") : "", stripe: "stripe-critical" }
+      ];
+    }
+
     cards.forEach(function(c){
       var div = document.createElement("div");
       div.className = "kpi " + (c.stripe||"");
@@ -1200,7 +1244,10 @@
       renderTablaClientes();
     });
   });
-  document.getElementById("clientesFiltro").addEventListener("change", renderTablaClientes);
+  document.getElementById("clientesFiltro").addEventListener("change", function(){
+    renderKPIsClientes();
+    renderTablaClientes();
+  });
   document.getElementById("clientesSearch").addEventListener("input", function(){
     clearTimeout(clientesSearchDebounce);
     clientesSearchDebounce = setTimeout(renderTablaClientes, 200);
@@ -1227,7 +1274,7 @@
       clientesLoaded = true;
       document.getElementById("clientesFecha").textContent = "Cargando...";
       clientes = await fetchClientes();
-      document.getElementById("clientesFecha").textContent = clientes.length ? (clientes.length + " clientes cargados") : "Cargá el export de \"Análisis de clientes\" para completar esto.";
+      document.getElementById("clientesFecha").textContent = clientes.length ? (clientes.length + " clientes · " + fmtUpdatedAt(maxUpdatedAt(clientes, "updated_at"))) : "Cargá el export de \"Análisis de clientes\" para completar esto.";
       renderClientesAll();
     }
   });
@@ -1242,6 +1289,17 @@
     el.textContent = now.toLocaleDateString("es-AR", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
   }
 
+  function renderUpdatedLines(){
+    var latest = maxUpdatedAt(weeks, "updatedAt");
+    if (posicionHoy.updatedAt){
+      var pd = new Date(posicionHoy.updatedAt);
+      if (!latest || pd > latest) latest = pd;
+    }
+    var txt = fmtUpdatedAt(latest);
+    document.getElementById("dashUpdated").textContent = txt;
+    document.getElementById("cobranzasUpdated").textContent = txt;
+  }
+
   function renderAll(){
     var series = buildSeries();
     renderPosPanel();
@@ -1252,6 +1310,7 @@
     renderChartPos(series);
     renderChartGap(series);
     renderChartComp(series);
+    renderUpdatedLines();
   }
 
   async function bootData(){

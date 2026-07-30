@@ -212,21 +212,6 @@
     flex-wrap: wrap;
     padding-bottom: 6px;
   }
-  .brand{
-    display:flex;
-    align-items:baseline;
-    gap:12px;
-  }
-  .brand .mark{
-    font-family: var(--font-body);
-    font-size: 12.5px;
-    letter-spacing: .02em;
-    color: var(--accent);
-    background: var(--accent-soft);
-    padding: 5px 12px;
-    border-radius: 100px;
-    font-weight: 600;
-  }
   h1{
     font-family: var(--font-display);
     font-weight: 700;
@@ -547,6 +532,13 @@
 
   /* ---------- table ---------- */
   .table-scroll{ overflow-x: auto; }
+  .table-scroll--tall{ max-height: 58vh; overflow-y: auto; }
+
+  .updated-line{
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: -6px;
+  }
   table{
     width: 100%;
     border-collapse: collapse;
@@ -755,9 +747,6 @@
 
     <div class="topbar">
       <div>
-        <div class="brand">
-          <span class="mark">Cobranzas vs. Pagos</span>
-        </div>
         <h1>Cobranzas Cofarsur</h1>
         <p>Objetivo semanal de cobranza para cubrir pagos sin salir a vender cheques.</p>
       </div>
@@ -777,6 +766,8 @@
     </nav>
 
     <section class="tab-section" id="tabDashboard">
+
+      <div class="updated-line" id="dashUpdated"></div>
 
       <div class="kpis" id="kpiRow"></div>
 
@@ -804,6 +795,8 @@
     </section>
 
     <section class="tab-section" id="tabCobranzas" hidden>
+
+      <div class="updated-line" id="cobranzasUpdated"></div>
 
       <div class="panel" id="posPanel">
         <div class="panel-head">
@@ -951,7 +944,7 @@
             </select>
           </div>
         </div>
-        <div class="table-scroll">
+        <div class="table-scroll table-scroll--tall">
           <table id="tablaClientes">
             <thead>
               <tr>
