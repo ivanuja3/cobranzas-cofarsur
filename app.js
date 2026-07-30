@@ -1186,7 +1186,7 @@
     if (!list.length){
       var tr = document.createElement("tr");
       var td = document.createElement("td");
-      td.colSpan = 8;
+      td.colSpan = 7;
       td.innerHTML = '<div class="empty-state">Sin resultados para este filtro/búsqueda.</div>';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -1197,8 +1197,21 @@
     list.forEach(function(c){
       var tr = document.createElement("tr");
       function cell(txt, cls){ var td = document.createElement("td"); if (cls) td.className = cls; td.textContent = txt; return td; }
-      tr.appendChild(cell(c.cliente || "—"));
-      tr.appendChild(cell(c.zona || c.provincia || "—"));
+
+      var tdCliente = document.createElement("td");
+      tdCliente.className = "cliente-cell";
+      tdCliente.title = (c.cliente || "—") + (c.zona ? " · " + c.zona : "");
+      var nameLine = document.createElement("span");
+      nameLine.textContent = c.cliente || "—";
+      tdCliente.appendChild(nameLine);
+      if (c.zona){
+        var zonaLine = document.createElement("span");
+        zonaLine.className = "zona-sub";
+        zonaLine.textContent = c.zona;
+        tdCliente.appendChild(zonaLine);
+      }
+      tr.appendChild(tdCliente);
+
       tr.appendChild(cell(c.venci_30 > 0 ? fmtARS(c.venci_30) : "—", "num auto-val"));
       tr.appendChild(cell(c.venci_60 > 0 ? fmtARS(c.venci_60) : "—", "num auto-val"));
       tr.appendChild(cell(c.venci_90 > 0 ? fmtARS(c.venci_90) : "—", "num auto-val"));

@@ -534,6 +534,12 @@
   .table-scroll{ overflow-x: auto; }
   .table-scroll--tall{ max-height: 58vh; overflow-y: auto; }
 
+  #tablaClientes{ min-width: 0; width: 100%; table-layout: fixed; }
+  #tablaClientes th, #tablaClientes td{ padding: 8px 8px; font-size: 12px; white-space: normal; }
+  #tablaClientes th:first-child, #tablaClientes td:first-child{ width: 34%; }
+  #tablaClientes td.cliente-cell{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #tablaClientes .zona-sub{ display:block; font-size:10px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
   .updated-line{
     font-size: 12.5px;
     color: var(--muted);
@@ -949,13 +955,12 @@
             <thead>
               <tr>
                 <th data-sort="cliente">Cliente</th>
-                <th data-sort="zona">Zona</th>
-                <th class="num" data-sort="venci_30">1-30 días</th>
-                <th class="num" data-sort="venci_60">31-60 días</th>
-                <th class="num" data-sort="venci_90">61-90 días</th>
-                <th class="num" data-sort="venci_may90">+90 días</th>
+                <th class="num" data-sort="venci_30">1-30d</th>
+                <th class="num" data-sort="venci_60">31-60d</th>
+                <th class="num" data-sort="venci_90">61-90d</th>
+                <th class="num" data-sort="venci_may90">+90d</th>
                 <th class="num" data-sort="dias_mora">Días mora</th>
-                <th class="num" data-sort="tot_credito">Total crédito</th>
+                <th class="num" data-sort="tot_credito">Total</th>
               </tr>
             </thead>
             <tbody id="tbodyClientes"></tbody>
