@@ -827,6 +827,7 @@
       <button type="button" class="tab-pill active" data-tab="dashboard">Dashboard</button>
       <button type="button" class="tab-pill" data-tab="cobranzas">Cobranzas vs. Pagos</button>
       <button type="button" class="tab-pill" data-tab="clientes">Análisis de clientes</button>
+      <button type="button" class="tab-pill" data-tab="ventas">Ventas vs Cobranzas</button>
       <button type="button" class="tab-pill" data-tab="campanas">Campañas</button>
     </nav>
 
@@ -896,49 +897,6 @@
             <label style="font-size:11.5px;color:var(--muted);font-weight:600;">Colchón neto</label>
             <div class="pos-value" id="posColchon">$ 0,0 M</div>
           </div>
-        </div>
-      </div>
-
-      <div class="panel" id="ventasPanel">
-        <div class="panel-head">
-          <div>
-            <h2>Ventas → Cobranza estimada</h2>
-            <div class="desc">Aproximado hasta tener el detalle real de sistemas (todavía no distingue contado de cuenta corriente).</div>
-          </div>
-          <div class="pos-field" style="max-width:170px;">
-            <label>Días para cobrar</label>
-            <input type="number" id="diasCobroVentas" min="0" value="10" />
-          </div>
-        </div>
-        <div class="table-scroll">
-          <table id="tablaVentas">
-            <thead>
-              <tr>
-                <th>Semana de venta</th>
-                <th class="num">Monto vendido</th>
-                <th>Cobranza estimada</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tbodyVentas"></tbody>
-          </table>
-        </div>
-        <div class="table-foot-bar">
-          <button class="primary" id="btnAgregarVenta">+ Agregar semana</button>
-          <div class="desc" style="color:var(--muted); font-size:11.5px;">Los montos se cargan en millones de $ (ej: 19868 = $19.868 M)</div>
-        </div>
-        <div class="panel-head" style="border-top:1px solid var(--line); border-bottom:none;">
-          <div>
-            <h2>Cobranza estimada por semana</h2>
-            <div class="desc">Suma de ventas que caen en cada semana según el plazo de cobro.</div>
-          </div>
-        </div>
-        <div class="chart-scroll"><svg class="chart" id="chartVentasCobranza"></svg></div>
-        <div class="table-scroll">
-          <table id="tablaVentasMensual">
-            <thead><tr><th>Mes</th><th class="num">Cobranza estimada</th></tr></thead>
-            <tbody id="tbodyVentasMensual"></tbody>
-          </table>
         </div>
       </div>
 
@@ -1070,6 +1028,64 @@
         </div>
         <div class="table-foot-bar">
           <div class="desc" id="clientesCount" style="color:var(--muted); font-size:11.5px;"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="tab-section" id="tabVentas" hidden>
+
+      <div class="panel" id="ventasPanel">
+        <div class="panel-head">
+          <div>
+            <h2>Ventas → Cobranza estimada</h2>
+            <div class="desc">Aproximado hasta tener el detalle real de sistemas (no distingue contado de cuenta corriente todavía). Julio se cargó repartiendo el total mensual en partes iguales entre sus 4 semanas, por no tener el desglose semanal real.</div>
+          </div>
+          <div class="pos-field" style="max-width:170px;">
+            <label>Días para cobrar</label>
+            <input type="number" id="diasCobroVentas" min="0" value="10" />
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table id="tablaVentas">
+            <thead>
+              <tr>
+                <th>Semana de venta</th>
+                <th class="num">Monto vendido</th>
+                <th>Cobranza estimada</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyVentas"></tbody>
+          </table>
+        </div>
+        <div class="table-foot-bar">
+          <button class="primary" id="btnAgregarVenta">+ Agregar semana</button>
+          <div class="desc" style="color:var(--muted); font-size:11.5px;">Los montos se cargan en millones de $ (ej: 19868 = $19.868 M)</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Cobranza estimada por semana</h2>
+            <div class="desc">Suma de ventas que caen en cada semana según el plazo de cobro.</div>
+          </div>
+        </div>
+        <div class="chart-scroll"><svg class="chart" id="chartVentasCobranza"></svg></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Cobranza estimada por mes</h2>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table id="tablaVentasMensual">
+            <thead><tr><th>Mes</th><th class="num">Cobranza estimada</th></tr></thead>
+            <tbody id="tbodyVentasMensual"></tbody>
+          </table>
         </div>
       </div>
 

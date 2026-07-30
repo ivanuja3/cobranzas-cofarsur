@@ -1571,7 +1571,7 @@
   }
 
   /* ---------------- section tabs (segmented control) ---------------- */
-  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas", clientes: "tabClientes", campanas: "tabCampanas" };
+  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas", clientes: "tabClientes", ventas: "tabVentas", campanas: "tabCampanas" };
   function moveTabIndicator(btn){
     var indicator = document.getElementById("tabIndicator");
     if (!btn || !indicator) return;
