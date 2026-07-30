@@ -1399,18 +1399,38 @@
     if (loteActual && loteActual.length) renderLote();
   });
 
+  function csvField(v){
+    var s = (v === null || v === undefined) ? "" : String(v);
+    if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function rowsToCsv(headers, rows){
+    var lines = [headers.map(csvField).join(",")];
+    rows.forEach(function(r){
+      lines.push(headers.map(function(h){ return csvField(r[h]); }).join(","));
+    });
+    return lines.join("\r\n");
+  }
+
   document.getElementById("btnDescargarLote").addEventListener("click", function(){
     if (!loteActual || !loteActual.length) return;
     var template = document.getElementById("campMensaje").value;
     var rows = loteActual.map(function(c){
-      return { Cliente: c.cliente, Telefono: c.telefono || "", Monto: c.monto, DiasMora: c.dias_mora, Mensaje: componerMensaje(template, c) };
+      return { Cliente: c.cliente, Monto: c.monto, DiasMora: c.dias_mora, Telefono: c.telefono || "", Mensaje: componerMensaje(template, c) };
     });
-    var ws = XLSX.utils.json_to_sheet(rows);
-    var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Lote");
+    var csv = rowsToCsv(["Cliente","Monto","DiasMora","Telefono","Mensaje"], rows);
+    var bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    var blob = new Blob([bom, csv], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
     var rango = document.getElementById("campRango").value;
-    XLSX.writeFile(wb, "campana-" + rango + "-" + toISO(new Date()) + ".xlsx");
-    toast("Excel descargado.");
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "campana-" + rango + "-" + toISO(new Date()) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("CSV descargado.");
   });
 
   document.getElementById("btnConfirmarEnvio").addEventListener("click", async function(){
