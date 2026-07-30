@@ -547,7 +547,8 @@
   }
   table{
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     min-width: 1220px;
   }
   thead th{
@@ -561,6 +562,7 @@
     background: var(--surface);
     position: sticky;
     top: 0;
+    z-index: 2;
     white-space: nowrap;
   }
   thead th.num, td.num{ text-align: right; }
