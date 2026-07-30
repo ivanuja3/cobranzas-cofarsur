@@ -1603,6 +1603,169 @@
     moveTabIndicator(document.querySelector(".tab-pill.active"));
   });
 
+  /* ---------------- ventas -> cobranza estimada ---------------- */
+  var ventas = [];
+  var ventasConfig = { dias_cobro: 10 };
+
+  function mondayOf(d){
+    var day = d.getDay();
+    var diff = day === 0 ? -6 : (1 - day);
+    return addDays(d, diff);
+  }
+  function monthLabel(d){
+    return MESES[d.getMonth()] + " " + d.getFullYear();
+  }
+
+  async function fetchVentasConfig(){
+    var res = await supa.from("ventas_config").select("*").eq("id", 1).maybeSingle();
+    if (res.data) ventasConfig = { dias_cobro: Number(res.data.dias_cobro)||0 };
+  }
+  async function fetchVentas(){
+    var res = await supa.from("ventas_semanales").select("*").order("semana_venta");
+    return (res.data||[]).map(function(r){ return { id: r.id, semana_venta: r.semana_venta, monto: Number(r.monto)||0 }; });
+  }
+
+  document.getElementById("diasCobroVentas").addEventListener("change", async function(){
+    ventasConfig.dias_cobro = Math.max(0, Number(this.value)||0);
+    await supa.from("ventas_config").update({ dias_cobro: ventasConfig.dias_cobro, updated_at: new Date().toISOString() }).eq("id", 1);
+    renderVentasAll();
+  });
+
+  document.getElementById("btnAgregarVenta").addEventListener("click", async function(){
+    var last = ventas[ventas.length-1];
+    var start = last ? toISO(addDays(parseISO(last.semana_venta), 7)) : toISO(mondayOf(new Date()));
+    var res = await supa.from("ventas_semanales").insert({ semana_venta: start, monto: 0 }).select().single();
+    if (res.error){ toast("No se pudo agregar: " + res.error.message); return; }
+    ventas.push({ id: res.data.id, semana_venta: res.data.semana_venta, monto: 0 });
+    renderVentasAll();
+  });
+
+  function renderTablaVentas(){
+    var tbody = document.getElementById("tbodyVentas");
+    tbody.innerHTML = "";
+    ventas.forEach(function(v){
+      var tr = document.createElement("tr");
+
+      var tdFecha = document.createElement("td");
+      var dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.value = v.semana_venta;
+      dateInput.style.cssText = "font-family:var(--font-mono);font-size:12.5px;border:none;background:transparent;color:var(--ink);";
+      dateInput.addEventListener("change", async function(){
+        v.semana_venta = dateInput.value;
+        await supa.from("ventas_semanales").update({ semana_venta: v.semana_venta, updated_at: new Date().toISOString() }).eq("id", v.id);
+        ventas.sort(function(a,b){ return a.semana_venta < b.semana_venta ? -1 : 1; });
+        renderVentasAll();
+      });
+      tdFecha.appendChild(dateInput);
+      tr.appendChild(tdFecha);
+
+      var tdMonto = document.createElement("td");
+      tdMonto.className = "num";
+      var montoInput = document.createElement("input");
+      montoInput.type = "number"; montoInput.step = "0.01";
+      montoInput.value = v.monto;
+      montoInput.addEventListener("change", async function(){
+        v.monto = Number(montoInput.value)||0;
+        await supa.from("ventas_semanales").update({ monto: v.monto, updated_at: new Date().toISOString() }).eq("id", v.id);
+        renderVentasAll();
+      });
+      tdMonto.appendChild(montoInput);
+      tr.appendChild(tdMonto);
+
+      var tdEstim = document.createElement("td");
+      tdEstim.className = "auto-val";
+      var target = mondayOf(addDays(parseISO(v.semana_venta), ventasConfig.dias_cobro));
+      tdEstim.textContent = weekLabel(toISO(target));
+      tr.appendChild(tdEstim);
+
+      var tdDel = document.createElement("td");
+      var btnDel = document.createElement("button");
+      btnDel.className = "danger-ghost"; btnDel.textContent = "✕";
+      btnDel.addEventListener("click", async function(){
+        await supa.from("ventas_semanales").delete().eq("id", v.id);
+        ventas = ventas.filter(function(x){ return x.id !== v.id; });
+        renderVentasAll();
+      });
+      tdDel.appendChild(btnDel);
+      tr.appendChild(tdDel);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function ventasPorSemanaCobro(){
+    var map = {};
+    ventas.forEach(function(v){
+      var target = mondayOf(addDays(parseISO(v.semana_venta), ventasConfig.dias_cobro));
+      var key = toISO(target);
+      map[key] = (map[key]||0) + v.monto;
+    });
+    return map;
+  }
+
+  function renderChartVentas(){
+    var svg = document.getElementById("chartVentasCobranza");
+    svg.innerHTML = "";
+    var map = ventasPorSemanaCobro();
+    var keys = Object.keys(map).sort();
+    if (!keys.length){ svg.setAttribute("width",0); svg.setAttribute("height",0); return; }
+
+    var barW = 50, groupW = 76, padL = 60, padR = 20, padT = 28, padB = 34;
+    var h = 200;
+    var w = padL + padR + keys.length*groupW;
+    svg.setAttribute("width", w);
+    svg.setAttribute("height", h);
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+
+    var maxVal = Math.max.apply(null, keys.map(function(k){ return map[k]; }).concat([1])) * 1.2;
+    var plotH = h - padT - padB;
+    function y(v){ return padT + plotH - (v/maxVal)*plotH; }
+
+    keys.forEach(function(k, i){
+      var gx = padL + i*groupW + (groupW-barW)/2;
+      var v = map[k];
+      var rect = svgEl("rect", { x:gx, y:y(v), width:barW, height: Math.max(plotH-(y(v)-padT),1.5), rx:5, fill:"var(--s1)", style:"cursor:pointer" });
+      rect.addEventListener("mousemove", function(evt){ showTip(evt, weekLabel(k), [fmtM(v)]); });
+      rect.addEventListener("mouseleave", hideTip);
+      svg.appendChild(rect);
+      var valLab = svgEl("text", {x: gx+barW/2, y: y(v)-8, "text-anchor":"middle", fill:"var(--ink)", "font-size":11, "font-weight":700, "font-family":"var(--font-mono)"});
+      valLab.textContent = fmtM(v);
+      svg.appendChild(valLab);
+      var lab = svgEl("text", {x: gx+barW/2, y: h-14, "text-anchor":"middle", fill:"var(--ink-2)", "font-size":10.5, "font-family":"var(--font-body)"});
+      lab.textContent = weekLabel(k);
+      svg.appendChild(lab);
+    });
+  }
+
+  function renderTablaVentasMensual(){
+    var tbody = document.getElementById("tbodyVentasMensual");
+    tbody.innerHTML = "";
+    var map = ventasPorSemanaCobro();
+    var porMes = {};
+    Object.keys(map).forEach(function(k){
+      var d = parseISO(k);
+      var mkey = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+      porMes[mkey] = (porMes[mkey]||0) + map[k];
+    });
+    Object.keys(porMes).sort().forEach(function(mkey){
+      var parts = mkey.split("-");
+      var d = new Date(Number(parts[0]), Number(parts[1])-1, 1);
+      var tr = document.createElement("tr");
+      var tdMes = document.createElement("td"); tdMes.textContent = monthLabel(d);
+      var tdMonto = document.createElement("td"); tdMonto.className = "num auto-val"; tdMonto.textContent = fmtM(porMes[mkey]);
+      tr.appendChild(tdMes); tr.appendChild(tdMonto);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderVentasAll(){
+    document.getElementById("diasCobroVentas").value = ventasConfig.dias_cobro;
+    renderTablaVentas();
+    renderChartVentas();
+    renderTablaVentasMensual();
+  }
+
   /* ---------------- clock ---------------- */
   function renderClock(){
     var el = document.getElementById("todayLine");
@@ -1637,8 +1800,11 @@
   async function bootData(){
     weeks = await fetchWeeks();
     posicionHoy = await fetchPosicion();
+    await fetchVentasConfig();
+    ventas = await fetchVentas();
     renderClock();
     renderAll();
+    renderVentasAll();
   }
 
   /* ---------------- auth ---------------- */
