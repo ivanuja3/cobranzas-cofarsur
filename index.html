@@ -464,6 +464,56 @@
     max-width: 160px;
   }
 
+  /* ---------- campañas ---------- */
+  textarea{
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    line-height: 1.5;
+    border: none;
+    background: var(--surface-2);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--ink);
+    width: 100%;
+    resize: vertical;
+  }
+  textarea:focus{ outline:none; box-shadow: 0 0 0 3px var(--accent-soft); }
+  code{
+    font-family: var(--font-mono);
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 5px;
+    font-size: 11.5px;
+  }
+  .campana-card{
+    border-bottom: 1px solid var(--line);
+    padding: 14px 20px;
+  }
+  .campana-card:last-child{ border-bottom: none; }
+  .campana-card-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    cursor: pointer;
+  }
+  .campana-card-head:hover{ color: var(--accent); }
+  .campana-card-info{ font-size:13.5px; font-weight:600; }
+  .campana-card-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .campana-detail{ margin-top:12px; display:none; }
+  .campana-detail.open{ display:block; }
+  .campana-detail table{ min-width: 0; }
+  select.resultado-select{
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 5px 8px;
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
   /* ---------- filters (clientes) ---------- */
   input.search-input{
     font-family: var(--font-body);
@@ -534,10 +584,14 @@
   .table-scroll{ overflow-x: auto; }
   .table-scroll--tall{ max-height: 58vh; overflow-y: auto; }
 
-  #tablaClientes{ min-width: 0; width: 100%; table-layout: fixed; }
-  #tablaClientes th, #tablaClientes td{ padding: 8px 8px; font-size: 12px; white-space: normal; }
-  #tablaClientes th:first-child, #tablaClientes td:first-child{ width: 34%; }
-  #tablaClientes td.cliente-cell{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #tablaClientes, #tablaLote, .campana-detail table{ min-width: 0; width: 100%; table-layout: fixed; }
+  #tablaClientes th, #tablaClientes td,
+  #tablaLote th, #tablaLote td,
+  .campana-detail th, .campana-detail td{ padding: 8px 8px; font-size: 12px; white-space: normal; }
+  #tablaClientes th:first-child, #tablaClientes td:first-child,
+  #tablaLote th:first-child, #tablaLote td:first-child,
+  .campana-detail th:first-child, .campana-detail td:first-child{ width: 40%; }
+  #tablaClientes td.cliente-cell, #tablaLote td.cliente-cell, .campana-detail td.cliente-cell{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #tablaClientes .zona-sub{ display:block; font-size:10px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .updated-line{
@@ -771,6 +825,7 @@
       <button type="button" class="tab-pill active" data-tab="dashboard">Dashboard</button>
       <button type="button" class="tab-pill" data-tab="cobranzas">Cobranzas vs. Pagos</button>
       <button type="button" class="tab-pill" data-tab="clientes">Análisis de clientes</button>
+      <button type="button" class="tab-pill" data-tab="campanas">Campañas</button>
     </nav>
 
     <section class="tab-section" id="tabDashboard">
@@ -971,6 +1026,93 @@
         <div class="table-foot-bar">
           <div class="desc" id="clientesCount" style="color:var(--muted); font-size:11.5px;"></div>
         </div>
+      </div>
+
+    </section>
+
+    <section class="tab-section" id="tabCampanas" hidden>
+
+      <div class="updated-line" id="campanasUpdated"></div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Armar lote nuevo</h2>
+            <div class="desc">Prioriza por monto × días de atraso y evita repetir contactos recientes.</div>
+          </div>
+        </div>
+        <div class="pos-grid" style="grid-template-columns: repeat(4, minmax(140px,1fr));">
+          <div class="pos-field">
+            <label>Rango de mora</label>
+            <select class="filter-select" id="campRango" style="width:100%;">
+              <option value="30">1-30 días</option>
+              <option value="60">31-60 días</option>
+              <option value="90">61-90 días</option>
+              <option value="may90" selected>+90 días</option>
+            </select>
+          </div>
+          <div class="pos-field">
+            <label>Tamaño del lote</label>
+            <input type="number" id="campBatchSize" value="150" min="1" />
+          </div>
+          <div class="pos-field">
+            <label>No recontactar antes de (días)</label>
+            <input type="number" id="campCooldown" value="15" min="0" />
+          </div>
+          <div class="pos-field" style="display:flex; align-items:flex-end;">
+            <button class="primary" id="btnArmarLote" style="width:100%; justify-content:center;">Armar lote</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpiCampanaRow"></div>
+
+      <div class="panel" id="panelMensaje" hidden>
+        <div class="panel-head">
+          <div>
+            <h2>Mensaje</h2>
+            <div class="desc">Variables: <code>{{nombre}}</code>, <code>{{monto}}</code>, <code>{{dias_mora}}</code> — se completan solas por cliente.</div>
+          </div>
+        </div>
+        <div style="padding:16px 20px;">
+          <textarea id="campMensaje" rows="5"></textarea>
+        </div>
+      </div>
+
+      <div class="panel" id="panelLote" hidden>
+        <div class="panel-head">
+          <div>
+            <h2>Vista previa del lote</h2>
+            <div class="desc" id="loteResumen"></div>
+          </div>
+          <div class="actions">
+            <button class="ghost" id="btnDescargarLote">Descargar Excel para Nitro</button>
+            <button class="primary" id="btnConfirmarEnvio">Marcar campaña como enviada</button>
+          </div>
+        </div>
+        <div class="table-scroll table-scroll--tall">
+          <table id="tablaLote">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th class="num">Monto</th>
+                <th class="num">Días mora</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyLote"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Historial de campañas</h2>
+            <div class="desc">Hacé clic en una campaña para ver el detalle y cargar resultados.</div>
+          </div>
+        </div>
+        <div id="historialCampanas"></div>
       </div>
 
     </section>

@@ -1266,8 +1266,292 @@
     clientesSearchDebounce = setTimeout(renderTablaClientes, 200);
   });
 
+  /* ---------------- campañas (envíos masivos de cobranza) ---------------- */
+  var MENSAJE_DEFAULT = {
+    "30": "Hola {{nombre}}! Te escribimos de Cofarsur para recordarte que tenés un saldo pendiente de {{monto}}. Cualquier consulta o si ya lo abonaste, avisanos. ¡Gracias!",
+    "60": "Hola {{nombre}}, desde Cofarsur nos comunicamos porque registrás una deuda de {{monto}} con más de 30 días de atraso. Te pedimos que regularices tu cuenta a la brevedad para poder seguir operando sin inconvenientes. Ante cualquier duda, contactanos.",
+    "90": "Hola {{nombre}}, te contactamos de Cofarsur. Tu cuenta presenta un saldo vencido de {{monto}} con {{dias_mora}} días de atraso. Es importante que te pongas al día a la brevedad para evitar la suspensión de tu línea de crédito. Esperamos tu respuesta.",
+    "may90": "Hola {{nombre}}, nos comunicamos de Cofarsur respecto a tu cuenta con un saldo vencido de {{monto}} y {{dias_mora}} días de mora. De no regularizar la situación en los próximos días, nos veremos obligados a girar tu caso a nuestro estudio jurídico para iniciar las acciones legales correspondientes. Te pedimos que te comuniques a la brevedad para evitar esta instancia."
+  };
+  var RESULTADO_OPTS = [
+    { value: "", label: "Pendiente" },
+    { value: "pago", label: "Pagó" },
+    { value: "promesa", label: "Prometió pago" },
+    { value: "sin_respuesta", label: "Sin respuesta" }
+  ];
+
+  var loteActual = null;
+  var ultimoContacto = {};
+  var campanasCache = [];
+  var campanasLoaded = false;
+
+  function componerMensaje(template, cliente){
+    return (template||"")
+      .replace(/\{\{nombre\}\}/g, cliente.cliente || "")
+      .replace(/\{\{monto\}\}/g, fmtARS(cliente.monto))
+      .replace(/\{\{dias_mora\}\}/g, String(cliente.dias_mora||0));
+  }
+
+  async function cargarUltimoContacto(){
+    var resCamp = await supa.from("campanas").select("id, created_at");
+    var fechaPorCampana = {};
+    (resCamp.data||[]).forEach(function(c){ fechaPorCampana[c.id] = c.created_at; });
+    var resCli = await supa.from("campana_clientes").select("cliente_id, campana_id");
+    var map = {};
+    (resCli.data||[]).forEach(function(row){
+      var f = fechaPorCampana[row.campana_id];
+      if (!f) return;
+      if (!map[row.cliente_id] || new Date(f) > new Date(map[row.cliente_id])) map[row.cliente_id] = f;
+    });
+    ultimoContacto = map;
+  }
+
+  document.getElementById("campRango").addEventListener("change", function(){
+    document.getElementById("campMensaje").value = MENSAJE_DEFAULT[this.value] || "";
+  });
+  document.getElementById("campMensaje").value = MENSAJE_DEFAULT["may90"];
+
+  document.getElementById("btnArmarLote").addEventListener("click", function(){
+    if (!clientes.length){ toast("Primero cargá el análisis de clientes."); return; }
+    var rango = document.getElementById("campRango").value;
+    var batchSize = Math.max(1, Number(document.getElementById("campBatchSize").value)||150);
+    var cooldown = Math.max(0, Number(document.getElementById("campCooldown").value)||0);
+    var bucket = BUCKET_META[rango];
+    var field = bucket.field;
+    var now = Date.now();
+
+    var elegibles = clientes.filter(function(c){
+      if (!((c[field]||0) > 0)) return false;
+      var last = ultimoContacto[c.id];
+      if (!last) return true;
+      var dias = (now - new Date(last).getTime()) / 86400000;
+      return dias >= cooldown;
+    });
+    elegibles.sort(function(a,b){
+      var sa = (a[field]||0) * (a.dias_mora||1);
+      var sb = (b[field]||0) * (b.dias_mora||1);
+      return sb - sa;
+    });
+    var seleccion = elegibles.slice(0, batchSize);
+
+    loteActual = seleccion.map(function(c){
+      return { id: c.id, cliente: c.cliente, telefono: c.telefono || null, monto: c[field]||0, dias_mora: c.dias_mora||0 };
+    });
+
+    renderKPIsCampana(rango, elegibles.length);
+    renderLote();
+    document.getElementById("panelMensaje").hidden = false;
+    document.getElementById("panelLote").hidden = false;
+    toast(loteActual.length + " clientes seleccionados para el rango " + bucket.label + (elegibles.length > batchSize ? " (había " + elegibles.length + " elegibles, se tomaron los " + batchSize + " de mayor prioridad)" : "."));
+  });
+
+  function renderKPIsCampana(rango, elegiblesCount){
+    var row = document.getElementById("kpiCampanaRow");
+    row.innerHTML = "";
+    if (!loteActual || !loteActual.length){ return; }
+    var montoTotal = loteActual.reduce(function(a,c){ return a + c.monto; }, 0);
+    var sinTel = loteActual.filter(function(c){ return !c.telefono; }).length;
+    var diasProm = Math.round(loteActual.reduce(function(a,c){ return a + c.dias_mora; }, 0) / loteActual.length);
+    var cards = [
+      { label: "Clientes en el lote", value: loteActual.length.toLocaleString("es-AR"), sub: elegiblesCount + " elegibles en total para este rango", stripe: "stripe-accent" },
+      { label: "Monto del lote", value: fmtARS(montoTotal), sub: "suma de los " + loteActual.length + " clientes", stripe: "stripe-warning" },
+      { label: "Días de mora promedio", value: diasProm.toLocaleString("es-AR"), sub: "en este lote", stripe: "" },
+      { label: "Sin teléfono cargado", value: sinTel.toLocaleString("es-AR"), sub: sinTel ? "vas a tener que completarlos a mano" : "todos tienen teléfono", stripe: sinTel ? "stripe-warning" : "stripe-good" }
+    ];
+    cards.forEach(function(c){
+      var div = document.createElement("div");
+      div.className = "kpi " + (c.stripe||"");
+      div.innerHTML = '<div class="label">'+c.label+'</div><div class="value" style="font-size:20px;">'+c.value+'</div><div class="sub">'+c.sub+'</div>';
+      row.appendChild(div);
+    });
+  }
+
+  function renderLote(){
+    var tbody = document.getElementById("tbodyLote");
+    tbody.innerHTML = "";
+    var template = document.getElementById("campMensaje").value;
+    document.getElementById("loteResumen").textContent = loteActual.length + " cliente(s) · vista previa del mensaje para el primero: \"" + (loteActual[0] ? componerMensaje(template, loteActual[0]).slice(0,90) + "..." : "") + "\"";
+    loteActual.forEach(function(c, idx){
+      var tr = document.createElement("tr");
+      var tdCliente = document.createElement("td");
+      tdCliente.className = "cliente-cell";
+      tdCliente.textContent = c.cliente + (c.telefono ? "" : " (sin teléfono)");
+      if (!c.telefono) tdCliente.style.color = "var(--muted)";
+      tr.appendChild(tdCliente);
+      var tdMonto = document.createElement("td"); tdMonto.className = "num auto-val"; tdMonto.textContent = fmtARS(c.monto);
+      tr.appendChild(tdMonto);
+      var tdDias = document.createElement("td"); tdDias.className = "num auto-val"; tdDias.textContent = c.dias_mora;
+      tr.appendChild(tdDias);
+      var tdDel = document.createElement("td");
+      var btnDel = document.createElement("button");
+      btnDel.className = "danger-ghost"; btnDel.textContent = "✕"; btnDel.title = "Sacar del lote";
+      btnDel.addEventListener("click", function(){
+        loteActual.splice(idx,1);
+        renderLote();
+      });
+      tdDel.appendChild(btnDel);
+      tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById("campMensaje").addEventListener("input", function(){
+    if (loteActual && loteActual.length) renderLote();
+  });
+
+  document.getElementById("btnDescargarLote").addEventListener("click", function(){
+    if (!loteActual || !loteActual.length) return;
+    var template = document.getElementById("campMensaje").value;
+    var rows = loteActual.map(function(c){
+      return { Cliente: c.cliente, Telefono: c.telefono || "", Monto: c.monto, DiasMora: c.dias_mora, Mensaje: componerMensaje(template, c) };
+    });
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Lote");
+    var rango = document.getElementById("campRango").value;
+    XLSX.writeFile(wb, "campana-" + rango + "-" + toISO(new Date()) + ".xlsx");
+    toast("Excel descargado.");
+  });
+
+  document.getElementById("btnConfirmarEnvio").addEventListener("click", async function(){
+    if (!loteActual || !loteActual.length) return;
+    if (!confirm("¿Marcar esta campaña de " + loteActual.length + " clientes como enviada? No se va a poder deshacer.")) return;
+    var rango = document.getElementById("campRango").value;
+    var template = document.getElementById("campMensaje").value;
+    var montoTotal = loteActual.reduce(function(a,c){ return a + c.monto; }, 0);
+    var diasMin = Math.min.apply(null, loteActual.map(function(c){ return c.dias_mora; }));
+    var montoMin = Math.min.apply(null, loteActual.map(function(c){ return c.monto; }));
+
+    var session = await supa.auth.getSession();
+    var email = session.data.session ? session.data.session.user.email : null;
+
+    var resCamp = await supa.from("campanas").insert({
+      rango: rango,
+      monto_min: montoMin,
+      dias_min: diasMin,
+      batch_size: loteActual.length,
+      mensaje_template: template,
+      cantidad_clientes: loteActual.length,
+      monto_total: montoTotal,
+      creado_por: email
+    }).select().single();
+
+    if (resCamp.error){ toast("Error creando la campaña: " + resCamp.error.message); return; }
+    var campanaId = resCamp.data.id;
+
+    var payload = loteActual.map(function(c){
+      return {
+        campana_id: campanaId,
+        cliente_id: c.id,
+        cliente_nombre: c.cliente,
+        telefono: c.telefono,
+        monto: c.monto,
+        dias_mora: c.dias_mora,
+        mensaje: componerMensaje(template, c)
+      };
+    });
+    var CHUNK = 500;
+    for (var i=0;i<payload.length;i+=CHUNK){
+      var res = await supa.from("campana_clientes").insert(payload.slice(i, i+CHUNK));
+      if (res.error){ toast("Error guardando clientes de la campaña: " + res.error.message); return; }
+    }
+
+    await cargarUltimoContacto();
+    loteActual = null;
+    document.getElementById("panelMensaje").hidden = true;
+    document.getElementById("panelLote").hidden = true;
+    document.getElementById("kpiCampanaRow").innerHTML = "";
+    campanasLoaded = false;
+    await cargarHistorialCampanas();
+    toast("Campaña registrada. Ya no se van a repetir estos clientes hasta pasado el enfriamiento.");
+  });
+
+  async function cargarHistorialCampanas(){
+    if (campanasLoaded) return;
+    campanasLoaded = true;
+    var res = await supa.from("campanas").select("*").order("created_at", { ascending: false });
+    campanasCache = res.data || [];
+    renderHistorialCampanas();
+    var latest = maxUpdatedAt(campanasCache, "created_at");
+    document.getElementById("campanasUpdated").textContent = campanasCache.length ? fmtUpdatedAt(latest) : "Todavía no armaste ninguna campaña.";
+  }
+
+  function renderHistorialCampanas(){
+    var cont = document.getElementById("historialCampanas");
+    cont.innerHTML = "";
+    if (!campanasCache.length){
+      cont.innerHTML = '<div class="empty-state">Todavía no se armó ninguna campaña.</div>';
+      return;
+    }
+    campanasCache.forEach(function(camp){
+      var bucket = BUCKET_META[camp.rango];
+      var card = document.createElement("div");
+      card.className = "campana-card";
+      var d = new Date(camp.created_at);
+      var fecha = d.toLocaleDateString("es-AR", {day:"numeric", month:"short", year:"numeric"}) + " " + d.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
+      card.innerHTML =
+        '<div class="campana-card-head">' +
+          '<div><div class="campana-card-info">' + fecha + ' · ' + (bucket?bucket.label:camp.rango) + ' · ' + camp.cantidad_clientes + ' clientes</div>' +
+          '<div class="campana-card-sub">' + fmtARS(camp.monto_total) + ' en total' + (camp.creado_por ? ' · ' + camp.creado_por : '') + '</div></div>' +
+          '<span class="sort-arrow">▼</span>' +
+        '</div>' +
+        '<div class="campana-detail" id="detalle-'+camp.id+'"></div>';
+      card.querySelector(".campana-card-head").addEventListener("click", function(){
+        toggleDetalleCampana(camp.id);
+      });
+      cont.appendChild(card);
+    });
+  }
+
+  async function toggleDetalleCampana(campanaId){
+    var el = document.getElementById("detalle-"+campanaId);
+    var isOpen = el.classList.contains("open");
+    if (isOpen){ el.classList.remove("open"); return; }
+    if (!el.dataset.loaded){
+      el.innerHTML = '<div class="empty-state">Cargando...</div>';
+      el.classList.add("open");
+      var res = await supa.from("campana_clientes").select("*").eq("campana_id", campanaId).order("monto", {ascending:false});
+      var rows = res.data || [];
+      var table = document.createElement("table");
+      table.innerHTML =
+        '<thead><tr><th>Cliente</th><th class="num">Monto</th><th class="num">Días mora</th><th>Resultado</th></tr></thead>';
+      var tbody = document.createElement("tbody");
+      rows.forEach(function(r){
+        var tr = document.createElement("tr");
+        var tdC = document.createElement("td"); tdC.className="cliente-cell"; tdC.textContent = r.cliente_nombre;
+        tr.appendChild(tdC);
+        var tdM = document.createElement("td"); tdM.className="num auto-val"; tdM.textContent = fmtARS(r.monto);
+        tr.appendChild(tdM);
+        var tdD = document.createElement("td"); tdD.className="num auto-val"; tdD.textContent = r.dias_mora;
+        tr.appendChild(tdD);
+        var tdR = document.createElement("td");
+        var sel = document.createElement("select");
+        sel.className = "resultado-select";
+        RESULTADO_OPTS.forEach(function(opt){
+          var o = document.createElement("option");
+          o.value = opt.value; o.textContent = opt.label;
+          if ((r.resultado||"") === opt.value) o.selected = true;
+          sel.appendChild(o);
+        });
+        sel.addEventListener("change", async function(){
+          await supa.from("campana_clientes").update({ resultado: sel.value || null, resultado_actualizado_at: new Date().toISOString() }).eq("id", r.id);
+          toast("Resultado actualizado.");
+        });
+        tdR.appendChild(sel);
+        tr.appendChild(tdR);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      el.innerHTML = "";
+      el.appendChild(table);
+      el.dataset.loaded = "1";
+    } else {
+      el.classList.add("open");
+    }
+  }
+
   /* ---------------- section tabs (segmented control) ---------------- */
-  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas", clientes: "tabClientes" };
+  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas", clientes: "tabClientes", campanas: "tabCampanas" };
   function moveTabIndicator(btn){
     var indicator = document.getElementById("tabIndicator");
     if (!btn || !indicator) return;
@@ -1283,12 +1567,16 @@
       document.getElementById(TAB_SECTIONS[k]).hidden = (k !== key);
     });
     moveTabIndicator(btn);
-    if (key === "clientes" && !clientesLoaded){
+    if ((key === "clientes" || key === "campanas") && !clientesLoaded){
       clientesLoaded = true;
       document.getElementById("clientesFecha").textContent = "Cargando...";
       clientes = await fetchClientes();
       document.getElementById("clientesFecha").textContent = clientes.length ? (clientes.length + " clientes · " + fmtUpdatedAt(maxUpdatedAt(clientes, "updated_at"))) : "Cargá el export de \"Análisis de clientes\" para completar esto.";
       renderClientesAll();
+    }
+    if (key === "campanas"){
+      await cargarUltimoContacto();
+      await cargarHistorialCampanas();
     }
   });
   window.addEventListener("resize", function(){
