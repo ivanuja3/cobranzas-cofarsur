@@ -1002,11 +1002,40 @@
       var res = await supa.from("clientes_credito").insert(chunk);
       if (res.error){ toast("Error cargando clientes (fila ~" + i + "): " + res.error.message); return; }
     }
+
+    var snapshotFecha = toISO(new Date());
+    var histRows = rows.map(function(r){
+      return {
+        snapshot_fecha: snapshotFecha,
+        cliente_id: r.id,
+        cliente: r.cliente,
+        cadena: r.cadena,
+        zona: r.zona,
+        zona_comercial: r.zona_comercial,
+        provincia: r.provincia,
+        activo: r.activo,
+        dias_mora: r.dias_mora,
+        pct_mora: r.pct_mora,
+        venci_30: r.venci_30,
+        venci_60: r.venci_60,
+        venci_90: r.venci_90,
+        venci_may90: r.venci_may90,
+        no_vencido: r.no_vencido,
+        sin_res: r.sin_res,
+        tot_credito: r.tot_credito
+      };
+    });
+    for (var j=0;j<histRows.length;j+=CHUNK){
+      var histChunk = histRows.slice(j, j+CHUNK);
+      var histRes = await supa.from("clientes_credito_historico").upsert(histChunk, { onConflict: "cliente_id,snapshot_fecha" });
+      if (histRes.error){ toast("Los clientes se cargaron, pero no se pudo guardar el historial: " + histRes.error.message); break; }
+    }
+
     clientes = await fetchClientes();
     clientesLoaded = true;
     document.getElementById("clientesFecha").textContent = clientes.length + " clientes · " + fmtUpdatedAt(maxUpdatedAt(clientes, "updated_at"));
     renderClientesAll();
-    toast(rows.length + " clientes cargados en la base compartida.");
+    toast(rows.length + " clientes cargados — snapshot del " + snapshotFecha + " guardado para el histórico.");
   }
 
   document.getElementById("btnLoadClientes").addEventListener("click", function(){
