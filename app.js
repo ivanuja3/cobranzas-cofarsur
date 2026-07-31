@@ -162,6 +162,7 @@
     var patch = {};
     patch[colMap[field]] = value;
     if (field === "objetivo"){ patch.objetivo_custom = true; w.objetivoCustom = true; }
+    if (field === "pagos"){ patch.objetivo = value; w.objetivo = value; }
     patch.updated_at = new Date().toISOString();
     var res = await supa.from("weeks").update(patch).eq("id", w.id);
     if (res.error) toast("No se pudo guardar: " + res.error.message);
@@ -253,7 +254,7 @@
     if (!weeks.length){
       var tr = document.createElement("tr");
       var td = document.createElement("td");
-      td.colSpan = 11;
+      td.colSpan = 10;
       td.innerHTML = '<div class="empty-state">No hay semanas cargadas todavía. Usá "Agregar semana" o cargá un archivo.</div>';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -293,11 +294,6 @@
       tdPagos.className = "num";
       tdPagos.appendChild(fieldInput(w, "pagos"));
       tr.appendChild(tdPagos);
-
-      var tdObj = document.createElement("td");
-      tdObj.className = "num";
-      tdObj.appendChild(fieldInput(w, "objetivo"));
-      tr.appendChild(tdObj);
 
       var tdFFN = document.createElement("td");
       tdFFN.className = "num auto-val";
@@ -368,7 +364,6 @@
     function tfCell(txt, cls){ var td = document.createElement("td"); if(cls) td.className = cls; td.textContent = txt; return td; }
     trf.appendChild(tfCell("Total período", "label"));
     trf.appendChild(tfCell(fmtM(sums.pagos)));
-    trf.appendChild(tfCell(fmtM(sums.objetivo)));
     trf.appendChild(tfCell(fmtM(sums.ffnProy)));
     trf.appendChild(tfCell(fmtM(sums.cartera)));
     trf.appendChild(tfCell(sums.realCount ? fmtM(sums.real) : "—"));
@@ -473,7 +468,6 @@
     var el = document.getElementById("legend1");
     el.innerHTML =
       '<span><i style="background:var(--s1)"></i>Pagos necesarios</span>' +
-      '<span><i style="background:var(--s2)"></i>Objetivo cobranza</span>' +
       '<span><i style="background:var(--s3)"></i>Cobranza real</span>';
   }
 
@@ -482,7 +476,7 @@
     svg.innerHTML = "";
     if (!weeks.length){ svg.setAttribute("width", 0); svg.setAttribute("height", 0); return; }
 
-    var groupW = 96, barW = 22, gap = 3, padL = 54, padR = 20, padT = 16, padB = 34;
+    var groupW = 96, barW = 32, gap = 6, padL = 54, padR = 20, padT = 16, padB = 34;
     var h = 220;
     var w = padL + padR + weeks.length * groupW;
     svg.setAttribute("width", w);
@@ -490,7 +484,7 @@
     svg.setAttribute("viewBox", "0 0 " + w + " " + h);
 
     var maxVal = Math.max.apply(null, weeks.map(function(wk){
-      return Math.max(Number(wk.pagos)||0, Number(wk.objetivo)||0, series[wk.id].real || 0, 1);
+      return Math.max(Number(wk.pagos)||0, series[wk.id].real || 0, 1);
     }));
     maxVal = maxVal * 1.15;
     var plotH = h - padT - padB;
@@ -509,10 +503,9 @@
 
     weeks.forEach(function(wk, i){
       var c = series[wk.id];
-      var gx = padL + i*groupW + (groupW - (barW*3+gap*2))/2;
+      var gx = padL + i*groupW + (groupW - (barW*2+gap))/2;
       var s = [
         { v: Number(wk.pagos)||0, color: "var(--s1)", name: "Pagos" },
-        { v: Number(wk.objetivo)||0, color: "var(--s2)", name: "Objetivo" },
         { v: c.real, color: "var(--s3)", name: "Real" }
       ];
       s.forEach(function(ser, si){
@@ -533,7 +526,7 @@
         svg.appendChild(rect);
       });
 
-      var lab = svgEl("text", {x: gx + (barW*3+gap*2)/2, y: h-14, "text-anchor":"middle", fill:"var(--ink-2)", "font-size":11, "font-family":"var(--font-body)"});
+      var lab = svgEl("text", {x: gx + (barW*2+gap)/2, y: h-14, "text-anchor":"middle", fill:"var(--ink-2)", "font-size":11, "font-family":"var(--font-body)"});
       lab.textContent = weekLabel(wk.start);
       svg.appendChild(lab);
     });
