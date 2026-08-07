@@ -1593,7 +1593,7 @@
   }
 
   /* ---------------- section tabs (segmented control) ---------------- */
-  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas", clientes: "tabClientes", ventas: "tabVentas", campanas: "tabCampanas" };
+  var TAB_SECTIONS = { dashboard: "tabDashboard", cobranzas: "tabCobranzas", clientes: "tabClientes", ventas: "tabVentas", pagos: "tabPagos", campanas: "tabCampanas" };
   function moveTabIndicator(btn){
     var indicator = document.getElementById("tabIndicator");
     if (!btn || !indicator) return;
@@ -1619,6 +1619,12 @@
     if (key === "campanas"){
       await cargarUltimoContacto();
       await cargarHistorialCampanas();
+    }
+    if (key === "pagos" && !recibosLoaded){
+      recibosLoaded = true;
+      document.getElementById("pagosUpdated").textContent = "Cargando...";
+      recibos = await fetchRecibos();
+      renderPagosAll();
     }
   });
   window.addEventListener("resize", function(){
@@ -1786,6 +1792,312 @@
     renderTablaVentas();
     renderChartVentas();
     renderTablaVentasMensual();
+  }
+
+  /* ---------------- comportamiento de pago (recibos) ---------------- */
+  var recibos = [];
+  var recibosLoaded = false;
+  var METODOS = [
+    { key: "efectivo",    label: "Efectivo",     cls: "method-efectivo",    color: "var(--s1)" },
+    { key: "cheques",     label: "Cheques",      cls: "method-cheques",     color: "var(--s2)" },
+    { key: "depositos",   label: "Depósitos",    cls: "method-depositos",   color: "var(--s3)" },
+    { key: "retenciones", label: "Retenciones",  cls: "method-retenciones", color: "var(--s4)" },
+    { key: "nrd",         label: "NRD",          cls: "method-nrd",        color: "var(--s5)" }
+  ];
+
+  function parseCSV(text){
+    var rows = [], row = [], field = "", inQuotes = false;
+    for (var i=0;i<text.length;i++){
+      var ch = text[i];
+      if (inQuotes){
+        if (ch === '"'){
+          if (text[i+1] === '"'){ field += '"'; i++; } else inQuotes = false;
+        } else field += ch;
+      } else {
+        if (ch === '"') inQuotes = true;
+        else if (ch === ','){ row.push(field); field = ""; }
+        else if (ch === '\r'){ /* skip */ }
+        else if (ch === '\n'){ row.push(field); rows.push(row); row = []; field = ""; }
+        else field += ch;
+      }
+    }
+    if (field.length || row.length){ row.push(field); rows.push(row); }
+    return rows.filter(function(r){ return r.length > 1 || (r.length===1 && r[0] !== ""); });
+  }
+
+  function ddmmyyyyToISO(s){
+    var m = (s||"").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return null;
+    return m[3] + "-" + m[2].padStart(2,"0") + "-" + m[1].padStart(2,"0");
+  }
+  function parseMoney(s){
+    if (s === null || s === undefined) return 0;
+    var n = Number(String(s).replace(/[^0-9.\-]/g, ""));
+    return isNaN(n) ? 0 : n;
+  }
+
+  function extractRecibosCSV(text){
+    var rows = parseCSV(text);
+    if (!rows.length) throw new Error("archivo vacío");
+    var header = rows[0];
+    var col = {};
+    header.forEach(function(h, i){
+      var n = rawLabel(h);
+      if (n.indexOf("mero") !== -1) col.numero = i;
+      else if (n === "fecha") col.fecha = i;
+      else if (n === "cliente") col.cliente = i;
+      else if (n.indexOf("efectivo") === 0) col.efectivo = i;
+      else if (n === "cheques") col.cheques = i;
+      else if (n.indexOf("dep") === 0) col.depositos = i;
+      else if (n.indexOf("retenc") === 0) col.retenciones = i;
+      else if (n === "nrd") col.nrd = i;
+      else if (n === "total") col.total = i;
+      else if (n === "nombre") col.cobrador = i;
+      else if (n === "anulado") col.anulado = i;
+    });
+    var required = ["fecha","cliente","total"];
+    var missing = required.filter(function(k){ return col[k] === undefined; });
+    if (missing.length) throw new Error("no encontré columnas: " + missing.join(", "));
+
+    var out = [];
+    for (var i=1;i<rows.length;i++){
+      var r = rows[i];
+      if (!r || r.length < 2) continue;
+      var fechaISO = ddmmyyyyToISO(r[col.fecha]);
+      var cliente = (r[col.cliente]||"").trim();
+      if (!fechaISO || !cliente) continue;
+      var numero = col.numero !== undefined ? Number(r[col.numero]) : null;
+      out.push({
+        numero: numero,
+        fecha: fechaISO,
+        cliente: cliente,
+        efectivo: col.efectivo !== undefined ? parseMoney(r[col.efectivo]) : 0,
+        cheques: col.cheques !== undefined ? parseMoney(r[col.cheques]) : 0,
+        depositos: col.depositos !== undefined ? parseMoney(r[col.depositos]) : 0,
+        retenciones: col.retenciones !== undefined ? parseMoney(r[col.retenciones]) : 0,
+        nrd: col.nrd !== undefined ? parseMoney(r[col.nrd]) : 0,
+        total: col.total !== undefined ? parseMoney(r[col.total]) : 0,
+        cobrador: col.cobrador !== undefined ? (r[col.cobrador]||"").trim() : null,
+        anulado: col.anulado !== undefined ? rawLabel(r[col.anulado]) === "si" : false
+      });
+    }
+    return out.filter(function(r){ return r.numero !== null && !isNaN(r.numero); });
+  }
+
+  async function mergeRecibos(rows, sourceLabel){
+    var CHUNK = 500;
+    var inserted = 0;
+    for (var i=0;i<rows.length;i+=CHUNK){
+      var chunk = rows.slice(i, i+CHUNK);
+      var res = await supa.from("recibos_cobranza").upsert(chunk, { onConflict: "numero" });
+      if (res.error){ toast("Error cargando recibos (fila ~" + i + "): " + res.error.message); return; }
+      inserted += chunk.length;
+    }
+    recibos = await fetchRecibos();
+    recibosLoaded = true;
+    renderPagosAll();
+    toast(inserted.toLocaleString("es-AR") + " recibos cargados desde " + sourceLabel + ".");
+  }
+
+  async function fetchRecibos(){
+    var all = [];
+    var page = 1000, from = 0;
+    while (true){
+      var res = await supa.from("recibos_cobranza").select("*").order("fecha").range(from, from+page-1);
+      if (res.error){ toast("No se pudo cargar recibos: " + res.error.message); break; }
+      all = all.concat(res.data);
+      if (res.data.length < page) break;
+      from += page;
+    }
+    return all;
+  }
+
+  document.getElementById("btnLoadRecibos").addEventListener("click", function(){
+    document.getElementById("recibosFileInput").click();
+  });
+  document.getElementById("recibosFileInput").addEventListener("change", async function(evt){
+    var file = evt.target.files[0];
+    evt.target.value = "";
+    if (!file) return;
+    toast("Leyendo archivo, puede tardar unos segundos...");
+    try{
+      var text = await file.text();
+      var parsed = extractRecibosCSV(text);
+      if (!parsed.length){ toast("No encontré filas válidas en el archivo."); return; }
+      await mergeRecibos(parsed, file.name);
+    }catch(e){
+      toast("No se pudo procesar el archivo: " + e.message);
+    }
+  });
+
+  function renderKPIsPagos(){
+    var row = document.getElementById("kpiPagosRow");
+    row.innerHTML = "";
+    if (!recibos.length){
+      row.innerHTML = '<div class="kpi"><div class="label">Sin datos</div><div class="value">—</div><div class="sub">Cargá el archivo de consulta de recibos</div></div>';
+      return;
+    }
+    var vigentes = recibos.filter(function(r){ return !r.anulado; });
+    var total = vigentes.reduce(function(a,r){ return a + r.total; }, 0);
+    var clientesUnicos = {};
+    vigentes.forEach(function(r){ clientesUnicos[r.cliente] = true; });
+    var nClientes = Object.keys(clientesUnicos).length;
+    var fechas = vigentes.map(function(r){ return r.fecha; }).sort();
+    var rango = fechas.length ? (weekLabel(mondayOfISO(fechas[0])) + " a " + weekLabel(mondayOfISO(fechas[fechas.length-1]))) : "—";
+
+    var cards = [
+      { label: "Total cobrado", value: fmtARS(total), sub: vigentes.length.toLocaleString("es-AR") + " recibos vigentes", stripe: "stripe-good" },
+      { label: "Clientes distintos", value: nClientes.toLocaleString("es-AR"), sub: "con al menos un recibo", stripe: "" },
+      { label: "Recibo promedio", value: fmtARS(vigentes.length ? total/vigentes.length : 0), sub: "por comprobante", stripe: "" },
+      { label: "Período cargado", value: fechas.length ? (fechas[0].split("-").reverse().join("/") + " – " + fechas[fechas.length-1].split("-").reverse().join("/")) : "—", sub: "rango de fechas en la base", stripe: "stripe-accent" }
+    ];
+    cards.forEach(function(c){
+      var div = document.createElement("div");
+      div.className = "kpi " + (c.stripe||"");
+      div.innerHTML = '<div class="label">'+c.label+'</div><div class="value" style="font-size:19px;">'+c.value+'</div><div class="sub">'+c.sub+'</div>';
+      row.appendChild(div);
+    });
+  }
+  function mondayOfISO(iso){ return toISO(mondayOf(parseISO(iso))); }
+
+  function renderLegendMetodos(){
+    var el = document.getElementById("legendMetodos");
+    el.innerHTML = METODOS.map(function(m){ return '<span><i style="background:'+m.color+'"></i>'+m.label+'</span>'; }).join("");
+  }
+
+  function renderChartMetodos(){
+    var svg = document.getElementById("chartMetodos");
+    svg.innerHTML = "";
+    var vigentes = recibos.filter(function(r){ return !r.anulado; });
+    if (!vigentes.length){ svg.setAttribute("width",0); svg.setAttribute("height",0); return; }
+
+    var porSemana = {};
+    vigentes.forEach(function(r){
+      var key = mondayOfISO(r.fecha);
+      if (!porSemana[key]) porSemana[key] = { efectivo:0, cheques:0, depositos:0, retenciones:0, nrd:0 };
+      METODOS.forEach(function(m){ porSemana[key][m.key] += r[m.key]||0; });
+    });
+    var keys = Object.keys(porSemana).sort();
+
+    var barW = 54, groupW = 78, padL = 64, padR = 20, padT = 16, padB = 34;
+    var h = 230;
+    var w = padL + padR + keys.length*groupW;
+    svg.setAttribute("width", w);
+    svg.setAttribute("height", h);
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+
+    var totals = keys.map(function(k){
+      return METODOS.reduce(function(a,m){ return a + porSemana[k][m.key]; }, 0);
+    });
+    var maxVal = Math.max.apply(null, totals.concat([1])) * 1.15;
+    var plotH = h - padT - padB;
+    function y(v){ return padT + plotH - (v/maxVal)*plotH; }
+
+    var ticks = 4;
+    for (var t=0;t<=ticks;t++){
+      var v = maxVal * t/ticks;
+      var yy = y(v);
+      svg.appendChild(svgEl("line", {x1:padL, x2:w-padR, y1:yy, y2:yy, stroke:"var(--line)", "stroke-width":1}));
+      var lbl = svgEl("text", {x:padL-10, y:yy+3, "text-anchor":"end", fill:"var(--muted)", "font-size":10, "font-family":"var(--font-mono)"});
+      lbl.textContent = fmtARS(v);
+      svg.appendChild(lbl);
+    }
+
+    keys.forEach(function(k, i){
+      var gx = padL + i*groupW + (groupW-barW)/2;
+      var stackY = plotH + padT;
+      METODOS.forEach(function(m){
+        var v = porSemana[k][m.key];
+        if (v <= 0) return;
+        var segH = (v/maxVal)*plotH;
+        var rect = svgEl("rect", { x:gx, y: stackY-segH, width:barW, height: Math.max(segH,0.5), fill: m.color, style:"cursor:pointer" });
+        rect.addEventListener("mousemove", function(evt){ showTip(evt, weekLabel(k), [m.label + ": " + fmtARS(v)]); });
+        rect.addEventListener("mouseleave", hideTip);
+        svg.appendChild(rect);
+        stackY -= segH;
+      });
+      var lab = svgEl("text", {x: gx+barW/2, y: h-14, "text-anchor":"middle", fill:"var(--ink-2)", "font-size":10.5, "font-family":"var(--font-body)"});
+      lab.textContent = weekLabel(k);
+      svg.appendChild(lab);
+    });
+  }
+
+  function pagosClientesUnicos(){
+    var set = {};
+    recibos.forEach(function(r){ set[r.cliente] = true; });
+    return Object.keys(set).sort();
+  }
+
+  function renderTimelineCliente(nombre){
+    var resumenEl = document.getElementById("pagosClienteResumen");
+    var tlEl = document.getElementById("pagosTimeline");
+    if (!nombre){ resumenEl.innerHTML = ""; tlEl.innerHTML = ""; return; }
+
+    var recs = recibos.filter(function(r){ return r.cliente === nombre; }).sort(function(a,b){ return b.fecha < a.fecha ? -1 : (b.fecha > a.fecha ? 1 : 0); });
+    if (!recs.length){
+      resumenEl.innerHTML = '<div class="empty-state">Sin recibos para "'+nombre+'".</div>';
+      tlEl.innerHTML = "";
+      return;
+    }
+    var vigentes = recs.filter(function(r){ return !r.anulado; });
+    var total = vigentes.reduce(function(a,r){ return a + r.total; }, 0);
+    var fechasAsc = vigentes.map(function(r){ return r.fecha; }).sort();
+    var gaps = [];
+    for (var i=1;i<fechasAsc.length;i++){
+      gaps.push((parseISO(fechasAsc[i]) - parseISO(fechasAsc[i-1])) / 86400000);
+    }
+    var promDias = gaps.length ? Math.round(gaps.reduce(function(a,b){return a+b;},0)/gaps.length) : null;
+
+    resumenEl.innerHTML =
+      '<div class="kpis" style="padding:0 20px 16px;">' +
+        '<div class="kpi"><div class="label">Total cobrado</div><div class="value" style="font-size:19px;">'+fmtARS(total)+'</div><div class="sub">'+vigentes.length+' recibo(s) vigentes</div></div>' +
+        '<div class="kpi"><div class="label">Días promedio entre pagos</div><div class="value" style="font-size:19px;">'+(promDias!==null?promDias:"—")+'</div><div class="sub">'+(promDias!==null?"cuanto más bajo, más frecuente paga":"no hay suficientes recibos")+'</div></div>' +
+      '</div>';
+
+    tlEl.innerHTML = "";
+    recs.forEach(function(r){
+      var item = document.createElement("div");
+      item.className = "timeline-item" + (r.anulado ? " tl-anulado" : "");
+      var metodos = METODOS.filter(function(m){ return (r[m.key]||0) > 0; });
+      var badges = metodos.map(function(m){ return '<span class="method-pill '+m.cls+'">'+m.label+'</span>'; }).join(" ");
+      item.innerHTML =
+        '<div class="tl-date">' + weekLabel(mondayOfISO(r.fecha)).split("–")[0].trim() + ' · ' + r.fecha.split("-").reverse().join("/") + (r.anulado ? " · ANULADO" : "") + '</div>' +
+        '<div class="tl-row"><span class="tl-amount">' + fmtARS(r.total) + '</span><span>' + badges + '</span></div>' +
+        '<div class="tl-meta">Recibo #' + r.numero + (r.cobrador ? " · " + r.cobrador : "") + '</div>';
+      tlEl.appendChild(item);
+    });
+  }
+
+  function renderSugerenciasPagos(term){
+    var cont = document.getElementById("pagosSugerencias");
+    cont.innerHTML = "";
+    if (!term){ return; }
+    var t = term.toLowerCase();
+    var matches = pagosClientesUnicos().filter(function(c){ return c.toLowerCase().indexOf(t) !== -1; }).slice(0, 8);
+    matches.forEach(function(nombre){
+      var btn = document.createElement("button");
+      btn.className = "ghost";
+      btn.textContent = nombre;
+      btn.addEventListener("click", function(){
+        document.getElementById("pagosClienteSearch").value = nombre;
+        cont.innerHTML = "";
+        renderTimelineCliente(nombre);
+      });
+      cont.appendChild(btn);
+    });
+  }
+
+  document.getElementById("pagosClienteSearch").addEventListener("input", function(){
+    var v = this.value.trim();
+    renderSugerenciasPagos(v);
+    if (!v) renderTimelineCliente(null);
+  });
+
+  function renderPagosAll(){
+    document.getElementById("pagosUpdated").textContent = recibos.length ? fmtUpdatedAt(maxUpdatedAt(recibos, "created_at")) : "Cargá el archivo de consulta de recibos para completar esto.";
+    renderKPIsPagos();
+    renderLegendMetodos();
+    renderChartMetodos();
   }
 
   /* ---------------- clock ---------------- */

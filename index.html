@@ -29,9 +29,11 @@
     --critical-soft: rgba(255,59,48,0.14);
     --pending-soft:  rgba(142,142,147,0.14);
 
-    --s1: #2a78d6; /* pagos */
-    --s2: #eb6834; /* objetivo */
-    --s3: #1baf7a; /* real */
+    --s1: #2a78d6; /* pagos / efectivo */
+    --s2: #eb6834; /* objetivo / cheques */
+    --s3: #1baf7a; /* real / depositos */
+    --s4: #eda100; /* retenciones */
+    --s5: #e87ba4; /* nrd */
 
     --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 28px -12px rgba(0,0,0,0.14);
 
@@ -67,6 +69,8 @@
       --s1: #3987e5;
       --s2: #d95926;
       --s3: #199e70;
+      --s4: #c98500;
+      --s5: #d55181;
 
       --shadow: 0 1px 2px rgba(0,0,0,0.5), 0 14px 34px -14px rgba(0,0,0,0.7);
     }
@@ -98,6 +102,8 @@
     --s1: #3987e5;
     --s2: #d95926;
     --s3: #199e70;
+    --s4: #c98500;
+    --s5: #d55181;
 
     --shadow: 0 1px 2px rgba(0,0,0,0.5), 0 14px 34px -14px rgba(0,0,0,0.7);
   }
@@ -464,6 +470,108 @@
     max-width: 160px;
   }
 
+  /* ---------- comportamiento de pago (timeline) ---------- */
+  .pay-search-wrap{
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 40px 20px 34px;
+    gap: 14px;
+  }
+  .pay-search-wrap .pay-icon{
+    width: 52px; height: 52px;
+    border-radius: 16px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display:flex; align-items:center; justify-content:center;
+    font-size: 24px;
+  }
+  .pay-search-wrap h2{
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .pay-search-wrap p{ margin:0; color: var(--ink-2); font-size: 13.5px; max-width: 420px; }
+  input.pay-search-input{
+    font-family: var(--font-body);
+    font-size: 15px;
+    border: none;
+    background: var(--surface-2);
+    border-radius: 14px;
+    padding: 13px 18px;
+    color: var(--ink);
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+  }
+  input.pay-search-input:focus{ outline:none; box-shadow: 0 0 0 3px var(--accent-soft); }
+  .pay-suggestions{
+    display:flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    max-width: 460px;
+  }
+  .pay-suggestions button{
+    font-size: 11.5px;
+    padding: 5px 12px;
+  }
+
+  .method-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    padding: 3px 9px;
+    border-radius: 100px;
+  }
+  .method-pill::before{ content:""; width:6px; height:6px; border-radius:50%; background: currentColor; }
+  .method-efectivo{ background: color-mix(in srgb, var(--s1) 16%, transparent); color: var(--s1); }
+  .method-cheques{ background: color-mix(in srgb, var(--s2) 16%, transparent); color: var(--s2); }
+  .method-depositos{ background: color-mix(in srgb, var(--s3) 16%, transparent); color: var(--s3); }
+  .method-retenciones{ background: color-mix(in srgb, var(--s4) 18%, transparent); color: var(--s4); }
+  .method-nrd{ background: color-mix(in srgb, var(--s5) 18%, transparent); color: var(--s5); }
+
+  .timeline{
+    position: relative;
+    padding: 4px 20px 20px 34px;
+    max-height: 62vh;
+    overflow-y: auto;
+  }
+  .timeline::before{
+    content:"";
+    position:absolute;
+    left: 15px; top: 8px; bottom: 12px;
+    width: 2px;
+    background: var(--line);
+  }
+  .timeline-item{
+    position: relative;
+    padding-bottom: 20px;
+  }
+  .timeline-item:last-child{ padding-bottom: 2px; }
+  .timeline-item::before{
+    content:"";
+    position: absolute;
+    left: -22px; top: 4px;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2.5px solid var(--accent);
+    z-index: 1;
+  }
+  .timeline-item.tl-anulado::before{ border-color: var(--muted); }
+  .tl-date{ font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--muted); }
+  .tl-row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; margin-top: 3px; flex-wrap: wrap; }
+  .tl-amount{ font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; }
+  .tl-anulado .tl-amount{ color: var(--muted); text-decoration: line-through; }
+  .tl-meta{ font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
   /* ---------- campañas ---------- */
   textarea{
     font-family: var(--font-body);
@@ -828,6 +936,7 @@
       <button type="button" class="tab-pill" data-tab="cobranzas">Cobranzas vs. Pagos</button>
       <button type="button" class="tab-pill" data-tab="clientes">Análisis de clientes</button>
       <button type="button" class="tab-pill" data-tab="ventas">Ventas vs Cobranzas</button>
+      <button type="button" class="tab-pill" data-tab="pagos">Comportamiento de Pago</button>
       <button type="button" class="tab-pill" data-tab="campanas">Campañas</button>
     </nav>
 
@@ -1086,6 +1195,49 @@
             <tbody id="tbodyVentasMensual"></tbody>
           </table>
         </div>
+      </div>
+
+    </section>
+
+    <section class="tab-section" id="tabPagos" hidden>
+
+      <div class="updated-line" id="pagosUpdated"></div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Comportamiento de pago</h2>
+            <div class="desc">Historial real de recibos de cobranza — cada pago, con fecha, método y cliente.</div>
+          </div>
+          <div class="actions">
+            <button class="ghost" id="btnLoadRecibos">Cargar consulta de recibos (CSV)</button>
+            <input type="file" id="recibosFileInput" accept=".csv" />
+          </div>
+        </div>
+        <div class="kpis" id="kpiPagosRow"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Cobranza semanal por método</h2>
+            <div class="desc">Efectivo, cheques, depósitos, retenciones y NRD — semana a semana.</div>
+          </div>
+          <div class="legend" id="legendMetodos"></div>
+        </div>
+        <div class="chart-scroll"><svg class="chart" id="chartMetodos"></svg></div>
+      </div>
+
+      <div class="panel">
+        <div class="pay-search-wrap">
+          <div class="pay-icon">🧾</div>
+          <h2>¿Cómo viene pagando un cliente?</h2>
+          <p>Buscá por nombre y mirá su historial de recibos en orden — cada pago, cuándo llegó y con qué método.</p>
+          <input type="text" class="pay-search-input" id="pagosClienteSearch" placeholder="Buscar cliente..." />
+          <div class="pay-suggestions" id="pagosSugerencias"></div>
+        </div>
+        <div id="pagosClienteResumen"></div>
+        <div class="timeline" id="pagosTimeline"></div>
       </div>
 
     </section>
