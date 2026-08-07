@@ -947,6 +947,7 @@
       else if (n === "prov." || n === "prov") col.provincia = idx;
       else if (n === "activo") col.activo = idx;
       else if (/^d.as mora$/.test(n)) col.dias_mora = idx;
+      else if (/^d.as$/.test(n)) col.dias_condicion = idx;
       else if (n === "% mora") col.pct_mora = idx;
       else if (n === "venci men 30") col.venci_30 = idx;
       else if (n === "venci men 60") col.venci_60 = idx;
@@ -981,6 +982,7 @@
         provincia: col.provincia !== undefined ? txt(row[col.provincia]) : null,
         activo: col.activo !== undefined ? (row[col.activo] === "SI") : null,
         dias_mora: col.dias_mora !== undefined ? Math.round(num(row[col.dias_mora])) : null,
+        dias_condicion: col.dias_condicion !== undefined ? Math.round(num(row[col.dias_condicion])) : null,
         pct_mora: col.pct_mora !== undefined ? num(row[col.pct_mora]) : null,
         venci_30: num(row[col.venci_30]),
         venci_60: num(row[col.venci_60]),
@@ -1015,6 +1017,7 @@
         provincia: r.provincia,
         activo: r.activo,
         dias_mora: r.dias_mora,
+        dias_condicion: r.dias_condicion,
         pct_mora: r.pct_mora,
         venci_30: r.venci_30,
         venci_60: r.venci_60,
@@ -1208,7 +1211,7 @@
     if (!list.length){
       var tr = document.createElement("tr");
       var td = document.createElement("td");
-      td.colSpan = 7;
+      td.colSpan = 8;
       td.innerHTML = '<div class="empty-state">Sin resultados para este filtro/búsqueda.</div>';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -1241,7 +1244,11 @@
       if (c.venci_may90 > 0) tdMay90.style.color = "var(--critical)";
       tdMay90.style.fontWeight = "600";
       tr.appendChild(tdMay90);
-      tr.appendChild(cell(c.dias_mora !== null ? c.dias_mora.toLocaleString("es-AR") : "—", "num auto-val"));
+      tr.appendChild(cell(c.dias_condicion !== null ? c.dias_condicion.toLocaleString("es-AR") : "—", "num auto-val"));
+      var excede = c.dias_mora > 0 && c.dias_condicion !== null && c.dias_mora > c.dias_condicion;
+      var tdDiasMora = cell(c.dias_mora !== null ? c.dias_mora.toLocaleString("es-AR") : "—", "num" + (excede ? "" : " auto-val"));
+      if (excede){ tdDiasMora.style.color = "var(--critical)"; tdDiasMora.style.fontWeight = "600"; tdDiasMora.title = "Paga más tarde de lo que su condición permite (" + c.dias_condicion + " días)"; }
+      tr.appendChild(tdDiasMora);
       tr.appendChild(cell(fmtARS(c.tot_credito), "num auto-val"));
       frag.appendChild(tr);
     });
