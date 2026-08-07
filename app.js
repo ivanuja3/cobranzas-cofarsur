@@ -1616,7 +1616,7 @@
       document.getElementById(TAB_SECTIONS[k]).hidden = (k !== key);
     });
     moveTabIndicator(btn);
-    if ((key === "clientes" || key === "campanas") && !clientesLoaded){
+    if ((key === "clientes" || key === "campanas" || key === "pagos") && !clientesLoaded){
       clientesLoaded = true;
       document.getElementById("clientesFecha").textContent = "Cargando...";
       clientes = await fetchClientes();
@@ -2055,11 +2055,26 @@
     }
     var promDias = gaps.length ? Math.round(gaps.reduce(function(a,b){return a+b;},0)/gaps.length) : null;
 
-    resumenEl.innerHTML =
-      '<div class="kpis" style="padding:0 20px 16px;">' +
+    var clienteInfo = clientes.find(function(c){ return c.cliente === nombre; });
+    var condDias = clienteInfo ? clienteInfo.dias_condicion : null;
+    var desfase = (promDias !== null && condDias !== null) ? (promDias - condDias) : null;
+
+    var cardsHtml =
         '<div class="kpi"><div class="label">Total cobrado</div><div class="value" style="font-size:19px;">'+fmtARS(total)+'</div><div class="sub">'+vigentes.length+' recibo(s) vigentes</div></div>' +
-        '<div class="kpi"><div class="label">Días promedio entre pagos</div><div class="value" style="font-size:19px;">'+(promDias!==null?promDias:"—")+'</div><div class="sub">'+(promDias!==null?"cuanto más bajo, más frecuente paga":"no hay suficientes recibos")+'</div></div>' +
-      '</div>';
+        '<div class="kpi"><div class="label">Días promedio entre pagos</div><div class="value" style="font-size:19px;">'+(promDias!==null?promDias:"—")+'</div><div class="sub">'+(promDias!==null?"cuanto más bajo, más frecuente paga":"no hay suficientes recibos")+'</div></div>';
+
+    if (condDias !== null){
+      cardsHtml += '<div class="kpi"><div class="label">Condición otorgada</div><div class="value" style="font-size:19px;">'+condDias+' días</div><div class="sub">según Análisis de clientes</div></div>';
+      if (desfase !== null){
+        var stripe = desfase > 0 ? "stripe-critical" : "stripe-good";
+        var sub = desfase > 0 ? "paga en promedio " + desfase + " día(s) más tarde de lo pactado" : "paga dentro de (o más rápido que) su condición";
+        cardsHtml += '<div class="kpi '+stripe+'"><div class="label">Desfasaje vs. condición</div><div class="value" style="font-size:19px;">'+(desfase>0?"+":"")+desfase+' días</div><div class="sub">'+sub+'</div></div>';
+      }
+    } else {
+      cardsHtml += '<div class="kpi"><div class="label">Condición otorgada</div><div class="value" style="font-size:19px;">—</div><div class="sub">no encontrado en Análisis de clientes</div></div>';
+    }
+
+    resumenEl.innerHTML = '<div class="kpis" style="padding:0 20px 16px;">' + cardsHtml + '</div>';
 
     tlEl.innerHTML = "";
     recs.forEach(function(r){
