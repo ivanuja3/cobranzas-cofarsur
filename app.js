@@ -2035,14 +2035,15 @@
     return Object.keys(set).sort();
   }
 
-  function renderTimelineCliente(nombre){
+  async function renderTimelineCliente(nombre){
     var resumenEl = document.getElementById("pagosClienteResumen");
     var tlEl = document.getElementById("pagosTimeline");
     if (!nombre){ resumenEl.innerHTML = ""; tlEl.innerHTML = ""; return; }
 
     var recs = recibos.filter(function(r){ return r.cliente === nombre; }).sort(function(a,b){ return b.fecha < a.fecha ? -1 : (b.fecha > a.fecha ? 1 : 0); });
-    if (!recs.length){
-      resumenEl.innerHTML = '<div class="empty-state">Sin recibos para "'+nombre+'".</div>';
+    var clienteInfo = clientes.find(function(c){ return c.cliente === nombre; });
+    if (!recs.length && !clienteInfo){
+      resumenEl.innerHTML = '<div class="empty-state">Sin datos para "'+nombre+'".</div>';
       tlEl.innerHTML = "";
       return;
     }
@@ -2055,9 +2056,11 @@
     }
     var promDias = gaps.length ? Math.round(gaps.reduce(function(a,b){return a+b;},0)/gaps.length) : null;
 
-    var clienteInfo = clientes.find(function(c){ return c.cliente === nombre; });
     var condDias = clienteInfo ? clienteInfo.dias_condicion : null;
+    var diasMora = clienteInfo ? clienteInfo.dias_mora : null;
     var desfase = (promDias !== null && condDias !== null) ? (promDias - condDias) : null;
+    var excedeMora = diasMora !== null && condDias !== null && diasMora > condDias;
+    var montoVencido = clienteInfo ? ((Number(clienteInfo.venci_30)||0) + (Number(clienteInfo.venci_60)||0) + (Number(clienteInfo.venci_90)||0) + (Number(clienteInfo.venci_may90)||0)) : null;
 
     var cardsHtml =
         '<div class="kpi"><div class="label">Total cobrado</div><div class="value" style="font-size:19px;">'+fmtARS(total)+'</div><div class="sub">'+vigentes.length+' recibo(s) vigentes</div></div>' +
@@ -2074,8 +2077,58 @@
       cardsHtml += '<div class="kpi"><div class="label">Condición otorgada</div><div class="value" style="font-size:19px;">—</div><div class="sub">no encontrado en Análisis de clientes</div></div>';
     }
 
+    if (diasMora !== null){
+      var stripeMora = excedeMora ? "stripe-critical" : (diasMora > 0 ? "stripe-warning" : "stripe-good");
+      var subMora = excedeMora ? "excede su condición de " + condDias + " días" : "según la última carga de Análisis de clientes";
+      cardsHtml += '<div class="kpi '+stripeMora+'"><div class="label">Días mora (hoy)</div><div class="value" style="font-size:19px;">'+diasMora+'</div><div class="sub">'+subMora+'</div></div>';
+    }
+    if (montoVencido !== null && montoVencido > 0){
+      cardsHtml += '<div class="kpi stripe-warning"><div class="label">Monto vencido total</div><div class="value" style="font-size:19px;">'+fmtARS(montoVencido)+'</div><div class="sub">suma de los 4 rangos de mora</div></div>';
+    }
+    if (clienteInfo){
+      cardsHtml += '<div class="kpi" id="tlTendCard"><div class="label">Tendencia de mora</div><div class="value" style="font-size:19px;">…</div><div class="sub">cargando historial</div></div>';
+      cardsHtml += '<div class="kpi" id="tlCampCard"><div class="label">Campañas</div><div class="value" style="font-size:19px;">…</div><div class="sub">cargando historial</div></div>';
+    }
+
     resumenEl.innerHTML = '<div class="kpis" style="padding:0 20px 16px;">' + cardsHtml + '</div>';
 
+    if (clienteInfo){
+      Promise.all([
+        supa.from("clientes_credito_historico").select("snapshot_fecha, dias_mora").eq("cliente_id", clienteInfo.id).order("snapshot_fecha"),
+        supa.from("campana_clientes").select("resultado, created_at").eq("cliente_id", clienteInfo.id)
+      ]).then(function(results){
+        var hist = results[0].data || [];
+        var camp = results[1].data || [];
+        var tendCard = document.getElementById("tlTendCard");
+        if (tendCard){
+          if (hist.length >= 2){
+            var prim = hist[0], ult = hist[hist.length-1];
+            var delta = ult.dias_mora - prim.dias_mora;
+            var stripeT = delta > 0 ? "stripe-critical" : (delta < 0 ? "stripe-good" : "");
+            var dirTxt = delta > 0 ? "empeoró" : (delta < 0 ? "mejoró" : "sin cambios");
+            tendCard.className = "kpi " + stripeT;
+            tendCard.innerHTML = '<div class="label">Tendencia de mora</div><div class="value" style="font-size:19px;">'+(delta>0?"+":"")+delta+' días</div><div class="sub">'+dirTxt+' desde el '+prim.snapshot_fecha.split("-").reverse().join("/")+' ('+hist.length+' cargas)</div>';
+          } else {
+            tendCard.innerHTML = '<div class="label">Tendencia de mora</div><div class="value" style="font-size:19px;">—</div><div class="sub">hace falta más de una carga de Análisis de clientes para este cliente</div>';
+          }
+        }
+        var campCard = document.getElementById("tlCampCard");
+        if (campCard){
+          if (camp.length){
+            var ultima = camp.slice().sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); })[0];
+            var resTxt = ultima.resultado ? ultima.resultado : "sin resultado cargado";
+            campCard.innerHTML = '<div class="label">Campañas</div><div class="value" style="font-size:19px;">'+camp.length+'</div><div class="sub">última: '+new Date(ultima.created_at).toLocaleDateString("es-AR")+' · '+resTxt+'</div>';
+          } else {
+            campCard.innerHTML = '<div class="label">Campañas</div><div class="value" style="font-size:19px;">0</div><div class="sub">nunca contactado por WhatsApp masivo</div>';
+          }
+        }
+      });
+    }
+
+    if (!recs.length){
+      tlEl.innerHTML = '<div class="empty-state">Sin recibos de cobranza para "'+nombre+'".</div>';
+      return;
+    }
     tlEl.innerHTML = "";
     recs.forEach(function(r){
       var item = document.createElement("div");
