@@ -2035,6 +2035,67 @@
     return Object.keys(set).sort();
   }
 
+  function redondearDiasCondicion(d){
+    var r = Math.round(d / 7) * 7;
+    return r < 7 ? 7 : r;
+  }
+
+  function construirSugerencias(clienteInfo, promDias, condDias, desfase){
+    if (!clienteInfo) return [];
+    var out = [];
+    var UMBRAL_DIAS = 10;
+
+    if (promDias !== null && condDias !== null){
+      if (desfase >= UMBRAL_DIAS){
+        var sugDias = redondearDiasCondicion(promDias);
+        out.push({
+          nivel: "critical",
+          label: "Ajustar días de condición",
+          texto: "Hoy tiene " + condDias + " días de condición pero paga en promedio a " + promDias + " días — se recomienda ajustar la condición a " + sugDias + " días para que refleje cómo paga realmente."
+        });
+      } else if (desfase <= -UMBRAL_DIAS){
+        out.push({
+          nivel: "good",
+          label: "Condición con margen",
+          texto: "Paga en promedio a " + promDias + " días, bastante antes de su condición de " + condDias + " días — no hace falta ajustar, pero es un cliente cómodo para una condición más amplia si en algún momento la pide."
+        });
+      } else {
+        out.push({
+          nivel: "",
+          label: "Días de condición",
+          texto: "Su condición de " + condDias + " días está acorde a cómo paga en la práctica (" + promDias + " días promedio) — no hace falta ajustar."
+        });
+      }
+    }
+
+    var totCredito = Number(clienteInfo.tot_credito) || 0;
+    var montoVenc = (Number(clienteInfo.venci_30)||0) + (Number(clienteInfo.venci_60)||0) + (Number(clienteInfo.venci_90)||0) + (Number(clienteInfo.venci_may90)||0);
+    if (totCredito > 0){
+      var pctVenc = clienteInfo.pct_mora !== null && clienteInfo.pct_mora !== undefined ? Number(clienteInfo.pct_mora) : (montoVenc / totCredito * 100);
+      if (pctVenc >= 25){
+        out.push({
+          nivel: "critical",
+          label: "Ajustar monto de crédito",
+          texto: "Tiene " + fmtARS(montoVenc) + " vencido sobre " + fmtARS(totCredito) + " de crédito otorgado (" + Math.round(pctVenc) + "% en mora) — se recomienda ajustar el límite de crédito a la baja."
+        });
+      } else if (pctVenc <= 5){
+        out.push({
+          nivel: "good",
+          label: "Monto de crédito",
+          texto: "Su mora frente al crédito otorgado es baja (" + Math.round(pctVenc) + "%) — el límite actual parece adecuado, no hay señal para reducirlo."
+        });
+      } else {
+        out.push({
+          nivel: "",
+          label: "Monto de crédito",
+          texto: "Su mora frente al crédito otorgado (" + Math.round(pctVenc) + "%) está en un rango razonable — no hace falta ajustar el límite por ahora."
+        });
+      }
+    }
+
+    return out;
+  }
+
   async function renderTimelineCliente(nombre){
     var resumenEl = document.getElementById("pagosClienteResumen");
     var tlEl = document.getElementById("pagosTimeline");
@@ -2090,7 +2151,17 @@
       cardsHtml += '<div class="kpi" id="tlCampCard"><div class="label">Campañas</div><div class="value" style="font-size:19px;">…</div><div class="sub">cargando historial</div></div>';
     }
 
-    resumenEl.innerHTML = '<div class="kpis" style="padding:0 20px 16px;">' + cardsHtml + '</div>';
+    var sugerencias = construirSugerencias(clienteInfo, promDias, condDias, desfase);
+    var sugHtml = "";
+    sugerencias.forEach(function(s){
+      var cls = s.nivel ? "stripe-" + s.nivel : "";
+      sugHtml += '<div class="sugerencia-box ' + cls + '"><div class="sug-label">' + s.label + '</div><div class="sug-item">' + s.texto + '</div></div>';
+    });
+    if (sugHtml){
+      sugHtml = '<div style="padding:0 20px 16px;display:flex;flex-direction:column;gap:10px;">' + sugHtml + '</div>';
+    }
+
+    resumenEl.innerHTML = '<div class="kpis" style="padding:0 20px 16px;">' + cardsHtml + '</div>' + sugHtml;
 
     if (clienteInfo){
       Promise.all([

@@ -286,6 +286,30 @@
   .kpi.stripe-warning{ background: var(--warning-soft); }
   .kpi.stripe-accent{ background: var(--accent-soft); }
 
+  .sugerencia-box{
+    background: var(--surface);
+    border-radius: 18px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .sugerencia-box.stripe-good{ background: var(--good-soft); }
+  .sugerencia-box.stripe-critical{ background: var(--critical-soft); }
+  .sugerencia-box.stripe-warning{ background: var(--warning-soft); }
+  .sugerencia-box .sug-label{
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ink-2);
+  }
+  .sugerencia-box .sug-item{
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
   .pill{
     display:inline-flex;
     align-items:center;
