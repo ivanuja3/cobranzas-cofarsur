@@ -2035,6 +2035,22 @@
     return Object.keys(set).sort();
   }
 
+  function redondearA7(d){
+    var r = Math.round(d / 7) * 7;
+    return r < 7 ? 7 : r;
+  }
+
+  function sugerirDiasNuevos(condDias, exceso){
+    if (condDias <= 7) return null;
+    var recorte;
+    if (exceso >= 40) recorte = 1;
+    else if (exceso >= 20) recorte = 0.5;
+    else recorte = 0.25;
+    var sugerido = recorte === 1 ? 7 : redondearA7(condDias * (1 - recorte));
+    if (sugerido >= condDias) sugerido = redondearA7(condDias - 7);
+    return sugerido;
+  }
+
   function construirSugerencias(clienteInfo, condDias, diasMora){
     if (!clienteInfo) return [];
     var out = [];
@@ -2043,10 +2059,14 @@
     if (condDias !== null && diasMora !== null){
       var exceso = diasMora - condDias;
       if (exceso >= UMBRAL_MORA){
+        var sugerido = sugerirDiasNuevos(condDias, exceso);
+        var accion = sugerido
+          ? "Sugerencia: bajar la condición de " + condDias + " a " + sugerido + " días."
+          : "Ya está en el mínimo práctico de condición (7 días) — para bajar el riesgo con este cliente conviene ajustar el monto de crédito en vez de los días.";
         out.push({
           nivel: "critical",
-          label: "Revisar días de condición",
-          texto: "Tiene " + condDias + " días de condición y hoy acumula " + diasMora + " días de mora (" + exceso + " días por encima de lo pactado) — se recomienda revisar la condición otorgada o frenar nuevas ventas a ese plazo hasta que regularice."
+          label: "Ajustar días de condición",
+          texto: "Tiene " + condDias + " días de condición y hoy acumula " + diasMora + " días de mora (" + exceso + " días por encima de lo pactado). " + accion
         });
       } else if (diasMora <= 0){
         out.push({
