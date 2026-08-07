@@ -2035,35 +2035,36 @@
     return Object.keys(set).sort();
   }
 
-  function redondearDiasCondicion(d){
-    var r = Math.round(d / 7) * 7;
-    return r < 7 ? 7 : r;
-  }
-
-  function construirSugerencias(clienteInfo, promDias, condDias, desfase){
+  function construirSugerencias(clienteInfo, condDias, diasMora){
     if (!clienteInfo) return [];
     var out = [];
-    var UMBRAL_DIAS = 10;
+    var UMBRAL_MORA = 10;
 
-    if (promDias !== null && condDias !== null){
-      if (desfase >= UMBRAL_DIAS){
-        var sugDias = redondearDiasCondicion(promDias);
+    if (condDias !== null && diasMora !== null){
+      var exceso = diasMora - condDias;
+      if (exceso >= UMBRAL_MORA){
         out.push({
           nivel: "critical",
-          label: "Ajustar días de condición",
-          texto: "Hoy tiene " + condDias + " días de condición pero paga en promedio a " + promDias + " días — se recomienda ajustar la condición a " + sugDias + " días para que refleje cómo paga realmente."
+          label: "Revisar días de condición",
+          texto: "Tiene " + condDias + " días de condición y hoy acumula " + diasMora + " días de mora (" + exceso + " días por encima de lo pactado) — se recomienda revisar la condición otorgada o frenar nuevas ventas a ese plazo hasta que regularice."
         });
-      } else if (desfase <= -UMBRAL_DIAS){
+      } else if (diasMora <= 0){
         out.push({
           nivel: "good",
-          label: "Condición con margen",
-          texto: "Paga en promedio a " + promDias + " días, bastante antes de su condición de " + condDias + " días — no hace falta ajustar, pero es un cliente cómodo para una condición más amplia si en algún momento la pide."
+          label: "Días de condición",
+          texto: "Está al día, sin mora — su condición de " + condDias + " días funciona bien, no hace falta ajustar."
         });
-      } else {
+      } else if (exceso > 0){
         out.push({
           nivel: "",
           label: "Días de condición",
-          texto: "Su condición de " + condDias + " días está acorde a cómo paga en la práctica (" + promDias + " días promedio) — no hace falta ajustar."
+          texto: "Tiene " + diasMora + " días de mora, un poco por encima de su condición de " + condDias + " días, pero dentro de un margen manejable — conviene monitorear, no urge ajustar."
+        });
+      } else {
+        out.push({
+          nivel: "good",
+          label: "Días de condición",
+          texto: "Su mora actual (" + diasMora + " días) está dentro de su condición de " + condDias + " días — no hace falta ajustar."
         });
       }
     }
@@ -2119,21 +2120,15 @@
 
     var condDias = clienteInfo ? clienteInfo.dias_condicion : null;
     var diasMora = clienteInfo ? clienteInfo.dias_mora : null;
-    var desfase = (promDias !== null && condDias !== null) ? (promDias - condDias) : null;
     var excedeMora = diasMora !== null && condDias !== null && diasMora > condDias;
     var montoVencido = clienteInfo ? ((Number(clienteInfo.venci_30)||0) + (Number(clienteInfo.venci_60)||0) + (Number(clienteInfo.venci_90)||0) + (Number(clienteInfo.venci_may90)||0)) : null;
 
     var cardsHtml =
         '<div class="kpi"><div class="label">Total cobrado</div><div class="value" style="font-size:19px;">'+fmtARS(total)+'</div><div class="sub">'+vigentes.length+' recibo(s) vigentes</div></div>' +
-        '<div class="kpi"><div class="label">Días promedio entre pagos</div><div class="value" style="font-size:19px;">'+(promDias!==null?promDias:"—")+'</div><div class="sub">'+(promDias!==null?"cuanto más bajo, más frecuente paga":"no hay suficientes recibos")+'</div></div>';
+        '<div class="kpi"><div class="label">Días promedio entre pagos</div><div class="value" style="font-size:19px;">'+(promDias!==null?promDias:"—")+'</div><div class="sub">'+(promDias!==null?"frecuencia de pago, no compara contra la condición":"no hay suficientes recibos")+'</div></div>';
 
     if (condDias !== null){
       cardsHtml += '<div class="kpi"><div class="label">Condición otorgada</div><div class="value" style="font-size:19px;">'+condDias+' días</div><div class="sub">según Análisis de clientes</div></div>';
-      if (desfase !== null){
-        var stripe = desfase > 0 ? "stripe-critical" : "stripe-good";
-        var sub = desfase > 0 ? "paga en promedio " + desfase + " día(s) más tarde de lo pactado" : "paga dentro de (o más rápido que) su condición";
-        cardsHtml += '<div class="kpi '+stripe+'"><div class="label">Desfasaje vs. condición</div><div class="value" style="font-size:19px;">'+(desfase>0?"+":"")+desfase+' días</div><div class="sub">'+sub+'</div></div>';
-      }
     } else {
       cardsHtml += '<div class="kpi"><div class="label">Condición otorgada</div><div class="value" style="font-size:19px;">—</div><div class="sub">no encontrado en Análisis de clientes</div></div>';
     }
@@ -2151,7 +2146,7 @@
       cardsHtml += '<div class="kpi" id="tlCampCard"><div class="label">Campañas</div><div class="value" style="font-size:19px;">…</div><div class="sub">cargando historial</div></div>';
     }
 
-    var sugerencias = construirSugerencias(clienteInfo, promDias, condDias, desfase);
+    var sugerencias = construirSugerencias(clienteInfo, condDias, diasMora);
     var sugHtml = "";
     sugerencias.forEach(function(s){
       var cls = s.nivel ? "stripe-" + s.nivel : "";
